@@ -1,19 +1,19 @@
 
-package com.example.payment.ratefilter;
+// package com.example.payment.ratefilter;
 
-import org.springframework.boot.web.servlet.FilterRegistrationBean;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+// import org.springframework.boot.web.servlet.FilterRegistrationBean;
+// import org.springframework.context.annotation.Bean;
+// import org.springframework.context.annotation.Configuration;
 
-@Configuration
-public class FilterConfig {
+// @Configuration
+// public class FilterConfig {
 
-    @Bean
-    public FilterRegistrationBean<RateLimitFilter> rateLimitFilterRegistration() {
-        FilterRegistrationBean<RateLimitFilter> registrationBean = new FilterRegistrationBean<>();
-        registrationBean.setFilter(new RateLimitFilter()); 
-        registrationBean.addUrlPatterns("/appointment/*");
-        registrationBean.setOrder(1);
-        return registrationBean;
-    }
-}
+//     // @Bean
+//     // public FilterRegistrationBean<RateLimitFilter> rateLimitFilterRegistration() {
+//     //     FilterRegistrationBean<RateLimitFilter> registrationBean = new FilterRegistrationBean<>();
+//     //     registrationBean.setFilter(new RateLimitFilter()); 
+//     //     registrationBean.addUrlPatterns("/appointment/*");
+//     //     registrationBean.setOrder(1);
+//     //     return registrationBean;
+//     // }
+// }

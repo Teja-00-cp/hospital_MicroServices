@@ -222,6 +222,8 @@
                     },
                     error: function(xhr, status, error) {
                         console.error('Error fetching booked time slots:', error);
+                        let detailedMessage = xhr.responseText || error;
+                        alert('Error fetching booked time slots. Check console for details: ' + detailedMessage);
                         // Revert to all slots on error to avoid leaving the user with an empty list
                         populateTimeSlots(allTimeSlots);
                     }

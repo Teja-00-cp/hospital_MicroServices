@@ -29,7 +29,7 @@ resilience4j:
       # Circuit Breaker specifically for the Feign client
       welcomeOrderServiceCircuit: 
         failureRateThreshold: 50
-        waitDurationInOpenState: 1000s
+        waitDurationInOpenState: 100s
         slidingWindowType: COUNT_BASED
         slidingWindowSize: 5
   # retry:

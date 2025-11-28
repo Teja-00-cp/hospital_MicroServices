@@ -20,6 +20,8 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.payment.Model.Appointment;
 import com.example.payment.Service.AppointmentService;
 
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+
 
 @RestController
 @RequestMapping("/appointment")
@@ -60,9 +62,11 @@ public class AppointmentController {
 		return appointmentService.getBytime(id);
 	}
 	@GetMapping("/appt/time/{doctorId}/{appointmentDate}")
+	@CircuitBreaker(name = "welcomeOrderServiceCircuit", fallbackMethod = "localFallback")
 	 public List<String> getBookedTimeSlots(@PathVariable long doctorId, @PathVariable String appointmentDate) {
         return appointmentService.getBookedTimeSlots(doctorId, appointmentDate);
     }
+	
 	// @GetMapping("/appt/doctorname/{doctorName}/{appointmentDate}")
 	//  public List<String> getBookedTimeSlotsByName(@PathVariable String doctorName, @PathVariable String appointmentDate) {
     //     return appointmentService.getBookedTimeSlotsByName(doctorName, appointmentDate);

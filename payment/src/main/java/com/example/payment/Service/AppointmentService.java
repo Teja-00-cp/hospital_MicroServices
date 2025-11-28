@@ -73,6 +73,7 @@ public class AppointmentService {
         LocalTime endTime = LocalTime.parse(parts[1].trim(), TIME_FORMATTER);
         
         List<String> allSlots = generateTimeSlots(startTime, endTime);
+		System.err.println("Generated all slots: " + allSlots);
         
         LocalDate date = LocalDate.parse(appointmentDate);
         List<Appointment> bookedAppointments = appointmentRep.findByDoctorIdAndAppointmentDateAndStatus(doctorId, date, Status.CONFIRMED);
@@ -102,6 +103,7 @@ public class AppointmentService {
 	@CircuitBreaker(name = WELCOME_SERVICE, fallbackMethod = "fallbackGetBookedTimeSlotsByName")
     @Retry(name = "welcomeOrderServiceRetry")
 	public List<String> getBookedTimeSlotsByName(String doctorName, String appointmentDate) {
+		System.out.println("Y ur executing: ");
 		long doctorId = feign.getbyName(doctorName).getDoctorId();
 		return getBookedTimeSlots(doctorId, appointmentDate);
 	}
