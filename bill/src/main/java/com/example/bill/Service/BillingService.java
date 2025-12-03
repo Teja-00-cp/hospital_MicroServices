@@ -56,8 +56,6 @@ public class BillingService {
     public String processPaymentFallback(BillData data, Throwable t) {
         // Log the exception for diagnostics
         System.err.println("Circuit Breaker triggered or call failed: " + t.getMessage());
-
-        // 1. Handle the payment as 'fail' but ensure the bill is recorded.
         String status = "fail"; 
         
         // 2. Record the failed transaction to the database
