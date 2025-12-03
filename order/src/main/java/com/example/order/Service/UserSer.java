@@ -48,7 +48,11 @@ public class UserSer {
 		return userRepo.findAll();
 	}
 	 public void forGot(String name) {
-		 if(userRepo.findByUsername(name)==null) throw new IllegalArgumentException("Invalid not Avaliable");
+		System.out.println(userRepo.findByUsername(name).get()+" see some thing: ");
+		if(userRepo.findByUsername(name).get()==null){ 
+			System.out.println("Invalid not Avaliable");
+			throw new IllegalArgumentException("Invalid not Avaliable");
+		}
 		Random re=new Random();
 		int min = 1000;
         int max = 9999;

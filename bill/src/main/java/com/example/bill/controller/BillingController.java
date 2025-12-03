@@ -16,9 +16,9 @@ public class BillingController {
     @Autowired
     private BillingService billingService;
 
-    @GetMapping("/generate/{id}")
-    public Iterable<Bill> generateBill(@PathVariable Long id) {
-        return billingService.generateBill(id);
+    @GetMapping("/generate/{name}")
+    public Iterable<Bill> generateBill(@PathVariable String name) {
+        return billingService.generateBill(name);
     }
 
     @GetMapping("/{billId}")
@@ -32,15 +32,16 @@ public class BillingController {
 
     @PostMapping("/pay/add")
     public String processPayment(@RequestBody BillData billId) {
-    	System.out.println(billId.getPatientId()+"  "+billId.getTotalAmount());
+    	System.out.println(billId.getPatientName()+"  "+billId.getTotalAmount());
         return billingService.processPaymentafter(billId);
     }
    public  static class BillData {
-        private Long patientId;
+        private String patientName;
         private Long totalAmount;
+        
 
-        public Long getPatientId() {
-            return patientId;
+        public String getPatientName() {
+            return patientName;
         }
 
         public Long getTotalAmount() {

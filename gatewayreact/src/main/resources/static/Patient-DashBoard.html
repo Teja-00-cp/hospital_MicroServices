@@ -256,6 +256,7 @@
                 window.location.href = 'login.html';
                 return;
             }
+            console.log("Logged in as:", username, "with role:", role);
             
             // Initial welcome message
             $('#welcomeMessage').text(`Welcome, ${username}!`);
@@ -449,7 +450,8 @@
             // This is the new, corrected part. 
             // The AJAX call for bills is now inside the click handler for the "Show My Bills" button.
             $('#showBill').on('click', function() {
-                const apiUrl = `http://localhost:8080/bill/api/billing/generate/${sessionStorage.getItem('patientId')}`;
+                console.log("I want these name: ", sessionStorage.getItem('patientId'));
+                const apiUrl = `http://localhost:8080/bill/api/billing/generate/${sessionStorage.getItem('username')}`;
                 const billsCard = $('#billsCard');
                 const billsContainer = $("#bills-container");
 
@@ -497,7 +499,7 @@
                         <tr>
                             <td>${bill.billId}</td>
                             <td>${bill.billDate}</td>
-                            <td>${sessionStorage.getItem('patientId')}</td>
+                            <td>${sessionStorage.getItem('username')}</td>
                             <td>$${bill.totalAmount}</td>
                             <td style="color: ${statusColor}; font-weight: bold;">${bill.paymentStatus}</td>
                         </tr>

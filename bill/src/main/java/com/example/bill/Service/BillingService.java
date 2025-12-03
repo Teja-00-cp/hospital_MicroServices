@@ -1,6 +1,7 @@
 package com.example.bill.Service;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.PathVariable;
 
@@ -24,26 +25,33 @@ import java.util.Map;
 @Service
 public class BillingService {
 
+    private final PasswordEncoder passwordEncoder;
+
     @Autowired
     private BillRepository billRepository;
     
     @Autowired
     private WelcomrFeign welcomrFeign;
 
-    public Iterable<Bill> generateBill(Long patientId) {
-        System.out.println("Generating bill for patient ID: " + billRepository.findByPatientId(patientId));
+    BillingService(PasswordEncoder passwordEncoder) {
+        this.passwordEncoder = passwordEncoder;
+    }
 
-    	return billRepository.findByPatientId(patientId);
+    public Iterable<Bill> generateBill(String patientName) {
+        // System.out.println("Generating bill for patient ID: " + billRepository.findByPatientId(patientId));
+
+    	return billRepository.findByPatientId(welcomrFeign.getPatientId(patientName).getPatientId());
 
     }
     @CircuitBreaker(name = "failtra", fallbackMethod = "processPaymentFallback")
     public String processPaymentafter(BillData data) {
-        Patient feignpatient=welcomrFeign.getPatientDetails(data.getPatientId()).orElse(null);
+        Patient feignpatient=welcomrFeign.getPatientId(data.getPatientName());
+        System.out.println(feignpatient.getPatientId());
     	String status=processPayment(data);
         System.out.println(status+"I Am Executing: ---------------------------------------");
     	Bill bill=new Bill();
     	bill.setBillDate(LocalDate.now());
-    	bill.setPatientId(data.getPatientId());
+    	bill.setPatientId(feignpatient.getPatientId());
     	bill.setTotalAmount(data.getTotalAmount());
     	bill.setPaymentStatus(status=="fail"?PaymentStatus.UNPAID:PaymentStatus.PAID);
         if("fail".equals(status)) {
@@ -61,7 +69,7 @@ public class BillingService {
         // 2. Record the failed transaction to the database
         Bill bill = new Bill();
         bill.setBillDate(LocalDate.now());
-        bill.setPatientId(data.getPatientId());
+        bill.setPatientId(welcomrFeign.getPatientId(data.getPatientName()).getPatientId());
         bill.setTotalAmount(data.getTotalAmount());
         bill.setPaymentStatus(PaymentStatus.UNPAID); // Always UNPAID on fallback
         
@@ -80,7 +88,7 @@ public class BillingService {
     }
 
     public String processPayment(BillData data) {
-    	boolean bol=welcomrFeign.getPatientDetails(data.getPatientId()).isPresent();
+    	boolean bol=welcomrFeign.getPatientDetails(welcomrFeign.getPatientId(data.getPatientName()).getPatientId()).isPresent();
     	System.out.println(bol);
     	
         return System.currentTimeMillis()%2==0 && bol?"success":"fail";
