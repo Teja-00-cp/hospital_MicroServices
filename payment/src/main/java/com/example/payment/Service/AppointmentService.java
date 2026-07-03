@@ -15,6 +15,7 @@ import com.example.payment.Model.Appointment;
 import com.example.payment.Model.Appointment.Status;
 import com.example.payment.Repository.AppointmentRep;
 import com.example.payment.client.WelcomrFeign;
+import com.example.payment.redis.RedisService; // Make sure this import matches your RedisService package
 
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
@@ -23,57 +24,114 @@ import moc.tem.model.Doctor;
 @Service
 public class AppointmentService {
 
-	private static final String WELCOME_SERVICE = "welcomeOrderServiceCircuit"; // Use the configured CB name
-	@Autowired
-	private AppointmentRep appointmentRep;
-	@Autowired
-	private WelcomrFeign feign;
+    private static final String WELCOME_SERVICE = "welcomeOrderServiceCircuit"; 
+    
+    @Autowired
+    private AppointmentRep appointmentRep;
+    
+    @Autowired
+    private WelcomrFeign feign;
 
-	public void scheduleAppointment(Appointment appointment) {
-		appointment.setStatus(Status.CONFIRMED);
-		appointmentRep.save(appointment);
-	}
-	
-	public Appointment getAppointmentDetails(long appointmentId){
-		return appointmentRep.findById(appointmentId).orElse(new Appointment());
-	}
-	
-	public void cancelAppointment(long appointmentId){
-		appointmentRep.deleteById(appointmentId);
-	}
-	public void updateAppointment(long appointmentId){
-		Appointment appointment=appointmentRep.findById(appointmentId).orElse(new Appointment());
-		appointment.setStatus(Status.CANCELLED);
-		appointmentRep.save(appointment);
-	}
-	
-	public List<Object[]> allDetails(){
-		return appointmentRep.findAppointmentsWithPatientAndDoctorDetails();
-	}
-	public Iterable<String> getBytime(long id){
-		return appointmentRep.findTimeSlotsByDoctorId(id);
-	}
-	@CircuitBreaker(name = WELCOME_SERVICE, fallbackMethod = "fallbackGetDoctorAppByToday")
+    @Autowired
+    private RedisService redisService; // Injecting your Redis Service
+
+    // --- REDIS LOCKING LOGIC START ---
+
+    private String generateRedisKey(long doctorId, String date, String timeSlot) {
+        return String.format("APPT:DOC:%d:DATE:%s:TIME:%s", doctorId, date, timeSlot);
+    }
+
+    public boolean blockSlot(long doctorId, String date, String timeSlot, String patientId) {
+        String redisKey = generateRedisKey(doctorId, date, timeSlot);
+        String existingHolder = redisService.get(redisKey);
+        
+        if (existingHolder != null && !existingHolder.equals(patientId)) {
+            return false; // Slot is already blocked by someone else
+        }
+        
+        // Block for 10 minutes using your RedisService method
+        redisService.saveWithExpiration(redisKey, patientId, 10);
+        return true;
+    }
+
+    public boolean revertSlot(long doctorId, String date, String timeSlot, String patientId) {
+        String redisKey = generateRedisKey(doctorId, date, timeSlot);
+        String existingHolder = redisService.get(redisKey);
+        
+        if (patientId.equals(existingHolder)) {
+            redisService.delete(redisKey);
+            return true;
+        }
+        return false;
+    }
+
+    // Updated scheduling method that checks the Redis lock first
+    public boolean scheduleAppointmentWithLock(Appointment appointment, String patientId) {
+        String dateStr = appointment.getAppointmentDate().toString();
+        String redisKey = generateRedisKey(appointment.getDoctorId(), dateStr, appointment.getTimeSlot());
+        
+        String existingHolder = redisService.get(redisKey);
+
+        if (patientId.equals(existingHolder)) {
+            // Lock is valid, save to DB
+            appointment.setStatus(Status.CONFIRMED);
+            appointmentRep.save(appointment);
+            
+            // Remove the temporary Redis lock
+            redisService.delete(redisKey);
+            return true;
+        }
+        return false; // Lock expired or belongs to someone else
+    }
+    // --- REDIS LOCKING LOGIC END ---
+
+    // Original fallback schedule method
+    public void scheduleAppointment(Appointment appointment) {
+        appointment.setStatus(Status.CONFIRMED);
+        appointmentRep.save(appointment);
+    }
+    
+    public Appointment getAppointmentDetails(long appointmentId){
+        return appointmentRep.findById(appointmentId).orElse(new Appointment());
+    }
+    
+    public void cancelAppointment(long appointmentId){
+        appointmentRep.deleteById(appointmentId);
+    }
+    
+    public void updateAppointment(long appointmentId){
+        Appointment appointment=appointmentRep.findById(appointmentId).orElse(new Appointment());
+        appointment.setStatus(Status.CANCELLED);
+        appointmentRep.save(appointment);
+    }
+    
+    public List<Object[]> allDetails(){
+        return appointmentRep.findAppointmentsWithPatientAndDoctorDetails();
+    }
+    
+    public Iterable<String> getBytime(long id){
+        return appointmentRep.findTimeSlotsByDoctorId(id);
+    }
+
+    @CircuitBreaker(name = WELCOME_SERVICE, fallbackMethod = "fallbackGetDoctorAppByToday")
     @Retry(name = "welcomeOrderServiceRetry")
-	public Iterable<Object[]> getdoctorappbyToday(String userName, LocalDate appointmentDate){
-		 long doctorId = feign.getbyName(userName).getDoctorId();
-		return appointmentRep.findAppointmentsWithDetailsByDoctorAndDate(doctorId,appointmentDate);
-	}
-	
-	private static final int SLOT_INTERVAL_MINUTES = 30;
+    public Iterable<Object[]> getdoctorappbyToday(String userName, LocalDate appointmentDate){
+         long doctorId = feign.getbyName(userName).getDoctorId();
+        return appointmentRep.findAppointmentsWithDetailsByDoctorAndDate(doctorId,appointmentDate);
+    }
+    
+    private static final int SLOT_INTERVAL_MINUTES = 30;
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("hh:mma",Locale.US);
-	@CircuitBreaker(name = WELCOME_SERVICE, fallbackMethod = "fallbackGetDoctorDetails")
+
+    @CircuitBreaker(name = WELCOME_SERVICE, fallbackMethod = "fallbackGetDoctorDetails")
     @Retry(name = "welcomeOrderServiceRetry")
     public List<String> getBookedTimeSlots(long doctorId, String appointmentDate) {
-        System.out.println("Id was: "+doctorId+" date:"+appointmentDate);
-        String availability =feign.getDoctorDetails(doctorId).getAvailabilitySchedule();
-        System.out.println(availability+"  "+feign.getDoctorDetails(doctorId));
+        String availability = feign.getDoctorDetails(doctorId).getAvailabilitySchedule();
         String[] parts = availability.split("-");
         LocalTime startTime = LocalTime.parse(parts[0].trim(), TIME_FORMATTER);
         LocalTime endTime = LocalTime.parse(parts[1].trim(), TIME_FORMATTER);
         
         List<String> allSlots = generateTimeSlots(startTime, endTime);
-		System.err.println("Generated all slots: " + allSlots);
         
         LocalDate date = LocalDate.parse(appointmentDate);
         List<Appointment> bookedAppointments = appointmentRep.findByDoctorIdAndAppointmentDateAndStatus(doctorId, date, Status.CONFIRMED);
@@ -100,13 +158,13 @@ public class AppointmentService {
         
         return slots;
     }
-	@CircuitBreaker(name = WELCOME_SERVICE, fallbackMethod = "fallbackGetBookedTimeSlotsByName")
+
+    @CircuitBreaker(name = WELCOME_SERVICE, fallbackMethod = "fallbackGetBookedTimeSlotsByName")
     @Retry(name = "welcomeOrderServiceRetry")
-	public List<String> getBookedTimeSlotsByName(String doctorName, String appointmentDate) {
-		System.out.println("Y ur executing: ");
-		long doctorId = feign.getbyName(doctorName).getDoctorId();
-		return getBookedTimeSlots(doctorId, appointmentDate);
-	}
+    public List<String> getBookedTimeSlotsByName(String doctorName, String appointmentDate) {
+        long doctorId = feign.getbyName(doctorName).getDoctorId();
+        return getBookedTimeSlots(doctorId, appointmentDate);
+    }
 }
 
 //	 public List<String> getBookedTimeSlots( long doctorId,  String appointmentDate) {

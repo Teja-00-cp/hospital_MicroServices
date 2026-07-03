@@ -1,12 +1,21 @@
 server:
   port: 8080
 
+  tomcat:
+    threads:
+      max: 400      # Increase worker threads
+    accept-count: 1000
 spring:
   application:
     name: API-GATEWAY
 
   cloud:
     gateway:
+      # 1. GATEWAY TIMEOUTS: Prevents Netty from cutting off slow responses early
+      httpclient:
+        connect-timeout: 8000     # 8 seconds in milliseconds
+        response-timeout: 8s       # 8 seconds duration
+     
       routes:
         # Route to WELCOME-ORDER-SERVICE
         - id: welcome-service-route
@@ -16,8 +25,8 @@ spring:
           filters:
             - name: CircuitBreaker
               args:
-                name: welcomeCircuitBreaker # Unique name for the Circuit Breaker
-                fallbackUri: forward:/gateway-fallback/welcome # Define a fallback URI
+                name: welcomeCircuitBreaker 
+                fallbackUri: forward:/gateway-fallback/welcome 
 
         # Route to BILL-SERVICE
         - id: greet-service-route
@@ -30,7 +39,7 @@ spring:
                 name: billCircuitBreaker
                 fallbackUri: forward:/gateway-fallback/bill
 
-        # Route to PAYMENT-SERVICE (used for /appointment in your config)
+        # Route to PAYMENT-SERVICE
         - id: payment-service-route
           uri: lb://PAYMENT-SERVICE
           predicates:
@@ -46,35 +55,60 @@ eureka:
     service-url:
       defaultZone: http://localhost:8761/eureka
 
+# 2. ACTUATOR CONFIGURATION: Exposes circuit breaker states via /actuator/health
+management:
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+  endpoint:
+    health:
+      show-details: always
+  health:
+    circuitbreakers:
+      enabled: true
+
+# 3. RESILIENCE4J CONFIGURATION: Circuit Breaker Rules & Timeouts
 resilience4j:
   circuitbreaker:
     instances:
       welcomeCircuitBreaker:
+        registerHealthIndicator: true  # Allows Actuator to see this metric
         failureRateThreshold: 50
         waitDurationInOpenState: 15s
         slidingWindowType: COUNT_BASED
         slidingWindowSize: 10
       billCircuitBreaker:
+        registerHealthIndicator: true  # Allows Actuator to see this metric
         failureRateThreshold: 60
         waitDurationInOpenState: 10s
         slidingWindowType: COUNT_BASED
         slidingWindowSize: 10
       paymentCircuitBreaker:
+        registerHealthIndicator: true  # Allows Actuator to see this metric
         failureRateThreshold: 50
         waitDurationInOpenState: 15s
         slidingWindowType: COUNT_BASED
         slidingWindowSize: 10
 
+  # TIMELIMITER: Prevents the circuit breaker from tripping on your 5-second sleep
+  timelimiter:
+    instances:
+      welcomeCircuitBreaker:
+        timeoutDuration: 8s
+      billCircuitBreaker:
+        timeoutDuration: 8s
+      paymentCircuitBreaker:
+        timeoutDuration: 8s
 
-
-
+#
 # server:
 #   port: 8080
-
+#
 # spring:
 #   application:
 #     name: API-GATEWAY
-
+#
 #   cloud:
 #     gateway:
 #       routes:
@@ -84,21 +118,21 @@ resilience4j:
 #             - Path=/order/**
 #           # filters:
 #           #   - StripPrefix=1
-
+#
 #         - id: greet-service-route
 #           uri: lb://BILL-SERVICE
 #           predicates:
 #             - Path=/bill/**
 #           # filters:
 #           #   - StripPrefix=1
-
+#
 #         - id: payment-service-route
 #           uri: lb://PAYMENT-SERVICE
 #           predicates:
 #             - Path=/appointment/**
 #           # filters:
 #           #   - StripPrefix=1
-
+#
 # eureka:
 #   client:
 #     service-url:

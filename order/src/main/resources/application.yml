@@ -3,23 +3,27 @@ server:
 
 spring:
   application:
-    name: WELCOME-ORDER-SERVICE # This name is used for service discovery
+    name: WELCOME-ORDER-SERVICE 
   boot:
     admin:
       client:
         url: http://localhost:1111/
+        instance:
+          prefer-ip: true # Forces Spring Boot Admin to target IP/Localhost
 
-# Uncomment and enable the Eureka client
 eureka:
   client:
     service-url:
       defaultZone: http://localhost:8761/eureka
   instance:
     hostname: localhost
+    prefer-ip-address: true # Forces Eureka registration via IP/Localhost
 
-# Expose management endpoints for Spring Boot Admin
 management:
   endpoints:
     web:
       exposure:
         include: '*'
+  endpoint:
+    health:
+      show-details: always

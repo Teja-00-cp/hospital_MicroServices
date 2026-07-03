@@ -1,6 +1,8 @@
 package com.example.order.controller;
 
 
+import java.util.concurrent.TimeUnit;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -53,6 +55,19 @@ public class UserContr {
 	public void forGotrer(@PathVariable String name) {
 		
 		 userSer.forGot(name);
+	}
+	@GetMapping("/loadtest")
+	public String loadTest() {
+		try {
+            // This pauses the current thread for exactly 5 seconds
+            TimeUnit.SECONDS.sleep(5); 
+            // Alternative: Thread.sleep(5000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            // System.err.println("❌ Wait was interrupted: " + e.getMessage());
+        }
+		// System.out.println("Load test completed successfully.");
+		return "Load test completed successfully -- User Service";
 	}
 	@PostMapping("/forgot/forgotreqotp/{num}/{pass}/{userName}")
 	public String veOtp(@PathVariable int num, @PathVariable String pass, @PathVariable String userName) {

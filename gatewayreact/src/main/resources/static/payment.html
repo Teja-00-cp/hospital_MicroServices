@@ -83,9 +83,9 @@ $(document).ready(function() {
             totalAmount: $('#doctorFee').val()
         };
 
-        // UI State
+        // UI State: Resetting all alert classes
         $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Processing...');
-        $msg.hide().removeClass('alert-danger alert-success');
+        $msg.hide().removeClass('alert-danger alert-success alert-warning');
 
         // STEP 1: BILLING API
         $.ajax({
@@ -96,10 +96,16 @@ $(document).ready(function() {
             success: function(payResponse) {
                 console.log("Billing Response:", payResponse);
 
-                // FIX: Use .trim() and .toLowerCase() to make the "success" check more reliable
+                // Safely convert response to lowercase string for checking
                 const status = (typeof payResponse === 'string') ? payResponse.trim().toLowerCase() : payResponse;
-
-                if (status === "success" || payResponse.status === "success") {
+				console.log("Response Data: ", status);
+                // 🛑 CIRCUIT BREAKER STATE
+                if (status.includes("fail-fallback") || status.includes("unavailable")) {
+                    $btn.prop('disabled', false).text('Pay & Book $' + parseFloat(appointmentData.doctorFee).toFixed(2));
+                    $msg.addClass('alert-warning').html('<strong>⚠️ Service Unavailable:</strong> The payment system is experiencing heavy load. Please try again in a few minutes.').show();
+                } 
+                // ✅ SUCCESS STATE
+                else if (status === "success" || payResponse.status === "success") {
                     
                     $btn.text('Booking Appointment...');
 
@@ -110,7 +116,7 @@ $(document).ready(function() {
                         contentType: 'application/json',
                         data: JSON.stringify(appointmentData),
                         success: function(appResponse) {
-                            $msg.addClass('alert-success').html('<strong>Success!</strong> Payment confirmed and appointment booked.').show();
+                            $msg.addClass('alert-success').html('<strong>✅ Success!</strong> Payment confirmed and appointment booked.').show();
                             sessionStorage.removeItem('appointmentFormDraft');
                             setTimeout(() => { window.location.href = "Patient-DashBoard.html"; }, 2500);
                         },
@@ -121,15 +127,22 @@ $(document).ready(function() {
                         }
                     });
 
-                } else {
-                    $btn.prop('disabled', false).text('Pay & Book');
-                    alert('Server returned: ' + JSON.stringify(payResponse));
+                } 
+                // ❌ NORMAL FAILURE STATE (E.g., Insufficient funds, bad card)
+                else if (status === "fail") {
+                    $btn.prop('disabled', false).text('Pay & Book $' + parseFloat(appointmentData.doctorFee).toFixed(2));
+                    $msg.addClass('alert-danger').html('<strong>❌ Payment Declined:</strong> Your transaction could not be completed.').show();
+                } 
+                // ❓ UNKNOWN RESPONSE
+                else {
+                    $btn.prop('disabled', false).text('Pay & Book $' + parseFloat(appointmentData.doctorFee).toFixed(2));
+                    $msg.addClass('alert-danger').html('<strong>Error:</strong> Unexpected server response.').show();
                 }
             },
             error: function(xhr) {
                 console.error("Payment Error Details:", xhr);
-                $btn.prop('disabled', false).text('Pay & Book');
-                $msg.addClass('alert-danger').html('Payment failed. Check server connection (CORS or Port 8080).').show();
+                $btn.prop('disabled', false).text('Pay & Book $' + parseFloat(appointmentData.doctorFee).toFixed(2));
+                $msg.addClass('alert-danger').html('<strong>🚨 Network Error:</strong> Cannot connect to the hospital servers.').show();
             }
         });
     });

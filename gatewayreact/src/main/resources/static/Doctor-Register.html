@@ -49,7 +49,7 @@
             font-weight: 500;
             color: #495057;
         }
-        .form-control {
+        .form-control, .form-select {
             border-radius: 8px;
             border: 1px solid #ced4da;
             font-size: 16px;
@@ -180,17 +180,21 @@
                     <label for="passWord" class="form-label">Password</label>
                     <input type="password" class="form-control" id="passWord" name="passWord" required>
                 </div>
+                
                 <div class="mb-3">
                     <label for="specialization" class="form-label">Specialization</label>
-                    <input type="text" class="form-control" id="specialization" name="specialization" required>
+                    <select class="form-select" id="specialization" name="specialization" required>
+                        <option value="" disabled selected>Select a specialization</option>
+                        </select>
                 </div>
+
                 <div class="mb-3">
                     <label for="contactNumber" class="form-label">Contact Number</label>
                     <input type="tel" class="form-control" id="contactNumber" name="contactNumber" required>
                 </div>
                 <div class="mb-3">
                     <label for="availabilitySchedule" class="form-label">Availability Schedule</label>
-                    <input type="text" class="form-control" id="availabilitySchedule" name="availabilitySchedule" required>
+                    <input type="text" class="form-control" id="availabilitySchedule" name="availabilitySchedule" placeholder="HH:MMXM-HH:MMXM" required>
                 </div>
                 <input type="hidden" id="role" name="role" value="DOCTOR">
                 <button type="submit" class="btn btn-primary w-100 mt-3"><i class="fas fa-user-plus"></i> Register Doctor</button>
@@ -204,7 +208,53 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
+    const doctorFee = {
+        "neurospecialist": 150,
+        "cardiologist": 120,
+        "dermatologist": 95,
+        "Nearo": 2344,
+        "Anesthesiology": 220,
+        "Cardiology": 200,
+        "Dentistry": 180,
+        "Endocrinology": 160,
+        "Gastroenterology": 140,
+        "Hematology": 115,
+        "Infectious Disease": 110,
+        "Internal Medicine": 105,
+        "Nephrology": 100,
+        "Neurology": 90,
+        "Obstetrics": 85,
+        "Gynecology": 85,
+        "Ophthalmology": 80,
+        "Orthopedics": 75,
+        "Otolaryngology (ENT)": 70,
+        "Pediatrics": 65,
+        "Psychiatry": 60,
+        "Pulmonology": 55,
+        "Radiology": 50,
+        "Rheumatology": 45,
+        "Urology": 40,
+        "General": 35,
+        "Family Medicine": 30,
+        "Geriatrics": 25,
+        "Oncology": 20,
+        "Palliative Care": 15,
+        "Sports Medicine": 10 
+    };
+
     $(document).ready(function() {
+        // 1. Populate the Specialization Dropdown automatically
+        const specDropdown = $('#specialization');
+        
+        // Extract keys, remove duplicates (if any), and sort alphabetically
+        const specializations = Object.keys(doctorFee).sort();
+        
+        specializations.forEach(function(spec) {
+            // Append options without showing the price
+            specDropdown.append($('<option></option>').attr('value', spec).text(spec));
+        });
+
+        // 2. Handle Form Submission
         $('#doctorForm').on('submit', function(event) {
             event.preventDefault();
             const formData = {
@@ -215,6 +265,7 @@
                 availabilitySchedule: $('#availabilitySchedule').val(),
                 role: $('#role').val()
             };
+            
             $.ajax({
                 url: 'http://localhost:8080/order/user/addDoctor',
                 type: 'POST',

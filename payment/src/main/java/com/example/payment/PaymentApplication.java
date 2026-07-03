@@ -1,5 +1,7 @@
 package com.example.payment;
 
+import java.util.concurrent.TimeUnit;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -24,7 +26,19 @@ import org.springframework.web.bind.annotation.GetMapping;
 @RequestMapping(value = "/payment")
 public class PaymentApplication {
 
-
+@GetMapping("/loadtest")
+	public String loadTest() {
+		try {
+            // This pauses the current thread for exactly 5 seconds
+            TimeUnit.SECONDS.sleep(5); 
+            // Alternative: Thread.sleep(5000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            System.err.println("❌ Wait was interrupted: " + e.getMessage());
+        }
+		System.out.println("Load test completed successfully.");
+		return "Load test completed successfully -- Payment Service";
+	}
 	
 
 //	@GetMapping("/order")

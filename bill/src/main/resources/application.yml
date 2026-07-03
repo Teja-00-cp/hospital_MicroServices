@@ -3,35 +3,43 @@ server:
 
 spring:
   application:
-    name: BILL-SERVICE # This name is used for service discovery
+    name: BILL-SERVICE 
   boot:
     admin:
       client:
         url: http://localhost:1111/
+        instance:
+          prefer-ip: true # Forces Spring Boot Admin to register using IP/Localhost
 
-# Uncomment and enable the Eureka client
 eureka:
   client:
     service-url:
       defaultZone: http://localhost:8761/eureka
   instance:
     hostname: localhost
+    prefer-ip-address: true # Forces Eureka to register using IP/Localhost instead of corporate machine name
 
-# Expose management endpoints for Spring Boot Admin
+# FIXED: Corrected indentation and removed duplicated keys
 management:
   endpoints:
     web:
       exposure:
         include: '*'
+  endpoint:
+    health:
+      show-details: always
+  health:
+    circuitbreakers:
+      enabled: true
 
 resilience4j:
   circuitbreaker:
     instances:
       failtra:
-        # registerHealthIndicator: true
+        registerHealthIndicator: true
         slidingWindowType: COUNT_BASED
-        slidingWindowSize: 10 # Number of recent calls to record
-        minimumNumberOfCalls: 5 # Minimum calls before calculating failure rate
-        failureRateThreshold: 50 # If 50% of the last 10 calls fail, the circuit opens
-        waitDurationInOpenState: 10s # How long the circuit stays open
-        permittedNumberOfCallsInHalfOpenState: 3 # Number of test calls allowed in HALF_OPEN state
+        slidingWindowSize: 10 
+        minimumNumberOfCalls: 5 
+        failureRateThreshold: 50 
+        waitDurationInOpenState: 10s 
+        permittedNumberOfCallsInHalfOpenState: 3
