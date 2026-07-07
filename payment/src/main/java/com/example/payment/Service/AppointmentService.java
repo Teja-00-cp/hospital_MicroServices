@@ -123,6 +123,28 @@ public class AppointmentService {
     private static final int SLOT_INTERVAL_MINUTES = 30;
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("hh:mma",Locale.US);
 
+    // @CircuitBreaker(name = WELCOME_SERVICE, fallbackMethod = "fallbackGetDoctorDetails")
+    // @Retry(name = "welcomeOrderServiceRetry")
+    // public List<String> getBookedTimeSlots(long doctorId, String appointmentDate) {
+    //     String availability = feign.getDoctorDetails(doctorId).getAvailabilitySchedule();
+    //     String[] parts = availability.split("-");
+    //     LocalTime startTime = LocalTime.parse(parts[0].trim(), TIME_FORMATTER);
+    //     LocalTime endTime = LocalTime.parse(parts[1].trim(), TIME_FORMATTER);
+        
+    //     List<String> allSlots = generateTimeSlots(startTime, endTime);
+        
+    //     LocalDate date = LocalDate.parse(appointmentDate);
+    //     List<Appointment> bookedAppointments = appointmentRep.findByDoctorIdAndAppointmentDateAndStatus(doctorId, date, Status.CONFIRMED);
+        
+    //     List<String> bookedSlots = bookedAppointments.stream()
+    //         .map(Appointment::getTimeSlot)
+    //         .collect(Collectors.toList());
+            
+    //     allSlots.removeAll(bookedSlots);
+        
+    //     return allSlots;
+    // }
+
     @CircuitBreaker(name = WELCOME_SERVICE, fallbackMethod = "fallbackGetDoctorDetails")
     @Retry(name = "welcomeOrderServiceRetry")
     public List<String> getBookedTimeSlots(long doctorId, String appointmentDate) {
@@ -134,15 +156,32 @@ public class AppointmentService {
         List<String> allSlots = generateTimeSlots(startTime, endTime);
         
         LocalDate date = LocalDate.parse(appointmentDate);
+        // 1. Remove slots that are PERMANENTLY booked in the database
         List<Appointment> bookedAppointments = appointmentRep.findByDoctorIdAndAppointmentDateAndStatus(doctorId, date, Status.CONFIRMED);
         
         List<String> bookedSlots = bookedAppointments.stream()
             .map(Appointment::getTimeSlot)
             .collect(Collectors.toList());
             
-        allSlots.removeAll(bookedSlots);
+        allSlots.removeAll(bookedSlots); 
         
-        return allSlots;
+        // --- NEW: 2. Check Redis for TEMPORARY holds ---
+        List<String> finalSlotsWithHolds = new ArrayList<>();
+        
+        for(String slot : allSlots) {
+            String redisKey = generateRedisKey(doctorId, appointmentDate, slot);
+            String lockHolder = redisService.get(redisKey); // Check if someone holds it right now
+            
+            if (lockHolder != null) {
+                // If it's locked in Redis, add the label
+                finalSlotsWithHolds.add(slot + " (On Hold)"); 
+            } else {
+                // Otherwise, it is completely free
+                finalSlotsWithHolds.add(slot); 
+            }
+        }
+        
+        return finalSlotsWithHolds;
     }
 
     public List<String> generateTimeSlots(LocalTime start, LocalTime end) {

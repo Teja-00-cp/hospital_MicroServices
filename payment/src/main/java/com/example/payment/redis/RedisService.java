@@ -1,37 +1,60 @@
 package com.example.payment.redis;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
-import java.time.Duration;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class RedisService {
 
-    @Autowired
-    private StringRedisTemplate redisTemplate;
+    // This HashMap acts as our "Fake Redis" database in memory
+    private final Map<String, LockEntry> cache = new ConcurrentHashMap<>();
+
+    // Internal class to keep track of the value and when it expires
+    private static class LockEntry {
+        String value;
+        long expirationTimeMs;
+
+        LockEntry(String value, long expirationTimeMs) {
+            this.value = value;
+            this.expirationTimeMs = expirationTimeMs;
+        }
+    }
 
     // 1. Save normal data
     public void save(String key, String value) {
-        redisTemplate.opsForValue().set(key, value);
-        System.out.println("✅ Saved to Redis: " + key);
+        cache.put(key, new LockEntry(value, Long.MAX_VALUE));
+        System.out.println("✅ Saved to Fake-Redis: " + key);
     }
 
-    // 2. Save data that automatically deletes itself after X minutes
+    // 2. Save data that automatically expires (Our 10-minute lock!)
     public void saveWithExpiration(String key, String value, long timeoutInMinutes) {
-        redisTemplate.opsForValue().set(key, value, Duration.ofMinutes(timeoutInMinutes));
-        System.out.println("✅ Saved to Redis with " + timeoutInMinutes + " min TTL: " + key);
+        long expireAt = System.currentTimeMillis() + (timeoutInMinutes * 60 * 1000);
+        cache.put(key, new LockEntry(value, expireAt));
+        System.out.println("✅ Saved to Fake-Redis with " + timeoutInMinutes + " min TTL: " + key);
     }
 
     // 3. Retrieve data
     public String get(String key) {
-        return redisTemplate.opsForValue().get(key);
+        LockEntry entry = cache.get(key);
+        if (entry == null) {
+            return null;
+        }
+        
+        // If the 10 minutes have passed, automatically delete it and return null
+        if (System.currentTimeMillis() > entry.expirationTimeMs) {
+            cache.remove(key);
+            System.out.println("⏰ Fake-Redis Lock Expired: " + key);
+            return null;
+        }
+        
+        return entry.value;
     }
 
     // 4. Delete data manually
     public void delete(String key) {
-        redisTemplate.delete(key);
-        System.out.println("🗑️ Deleted from Redis: " + key);
+        cache.remove(key);
+        System.out.println("🗑️ Deleted from Fake-Redis: " + key);
     }
 }

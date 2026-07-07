@@ -11,6 +11,7 @@
         .btn-pay { background-color: #007bff; border: none; padding: 12px; font-weight: bold; }
         .patient-welcome { color: #6c757d; font-size: 0.9rem; }
         #message-box { display: none; margin-top: 15px; }
+        .timer-text { font-size: 0.95rem; color: #dc3545; font-weight: bold; background: #ffeaea; padding: 8px; border-radius: 8px; display: inline-block; }
     </style>
 </head>
 <body>
@@ -21,7 +22,18 @@
             <div class="text-center mb-2">
                 <span class="patient-welcome">Hi, <span id="patientDisplayName" class="fw-bold text-dark">Guest</span>!</span>
             </div>
-            <h3 class="text-center mb-4">Finalize Consultation</h3>
+            <h3 class="text-center mb-3">Finalize Consultation</h3>
+            
+            <div class="text-center mb-4">
+                <div class="timer-text">
+                    ⏳ Time remaining to complete payment: <span id="countdownTimer" style="font-size: 1.2rem;">10:00</span>
+                </div>
+            </div>
+
+            <div class="alert alert-info text-center" style="background-color: #e3f2fd; color: #084298; border-color: #b6d4fe;">
+                <strong>🩺 Appointment Details:</strong> <br>
+                <span id="displayTimeSlot" class="fw-bold" style="font-size: 1.1rem;">Loading time...</span>
+            </div>
             
             <div id="message-box" class="alert d-flex align-items-center" role="alert"></div>
 
@@ -30,7 +42,7 @@
                     <label for="doctorFee" class="form-label fw-bold">Consultation Fee</label>
                     <div class="input-group input-group-lg">
                         <span class="input-group-text">$</span>
-                        <input type="number" class="form-control" id="doctorFee" placeholder="0.00" step="0.01" required>
+                        <input type="number" class="form-control" id="doctorFee" placeholder="0.00" step="0.01" required readonly>
                     </div>
                     <small class="text-muted">This amount is retrieved from your appointment selection.</small>
                 </div>
@@ -42,7 +54,7 @@
                 </button>
                 
                 <div class="text-center mt-3">
-                    <a href="BookAppointment.html" class="text-decoration-none small">← Back to Appointment</a>
+                    <a href="#" id="cancelPaymentLink" class="text-decoration-none small text-danger">← Cancel & Return to Booking</a>
                 </div>
             </form>
         </div>
@@ -71,6 +83,94 @@ $(document).ready(function() {
         $('#displayAmount').text('$' + parseFloat(appointmentData.doctorFee).toFixed(2));
     }
 
+    // Populate the new Date & Time box
+    $('#displayTimeSlot').text(appointmentData.appointmentDate + " at " + appointmentData.timeSlot);
+
+    // ==========================================
+    // DYNAMIC 10-MINUTE COUNTDOWN TIMER LOGIC
+    // ==========================================
+    
+    // Check if a timer is already running for this session
+    let expiryTime = sessionStorage.getItem('lockExpiryTime');
+    if (!expiryTime) {
+        // If not, set it for 10 minutes (600,000 ms) from exactly right now
+        expiryTime = Date.now() + 10 * 60 * 1000;
+        sessionStorage.setItem('lockExpiryTime', expiryTime);
+    }
+
+    const timerInterval = setInterval(function() {
+        const now = Date.now();
+        const distance = expiryTime - now;
+
+        // If time runs out
+        if (distance <= 0) {
+            clearInterval(timerInterval);
+            $('#countdownTimer').text("00:00");
+            $('#submitBtn').prop('disabled', true).text('Time Expired');
+            
+            alert("⏳ Your 10-minute reservation has expired. The time slot has been released.");
+            
+            // Automatically revert the slot on the backend
+            $.ajax({
+                type: 'POST',
+                url: 'http://localhost:8080/appointment/revert',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    patientId: appointmentData.patientId.toString(),
+                    doctorId: appointmentData.doctorId.toString(),
+                    date: appointmentData.appointmentDate,
+                    timeSlot: appointmentData.timeSlot
+                }),
+                complete: function() {
+                    // Clean up and boot them back to the calendar
+                    sessionStorage.removeItem('lockExpiryTime');
+                    sessionStorage.removeItem('appointmentFormDraft');
+                    window.location.href = "BookAppointment.html";
+                }
+            });
+            return;
+        }
+
+        // Calculate minutes and seconds
+        const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+        // Format to always show two digits (e.g., 09:05)
+        const formattedMinutes = minutes < 10 ? "0" + minutes : minutes;
+        const formattedSeconds = seconds < 10 ? "0" + seconds : seconds;
+
+        // Display the result
+        $('#countdownTimer').text(formattedMinutes + ":" + formattedSeconds);
+    }, 1000); // Update every 1 second
+    
+    // ==========================================
+
+    // --- HANDLE CANCEL / BACK BUTTON ---
+    $('#cancelPaymentLink').on('click', function(e) {
+        e.preventDefault();
+        
+        $.ajax({
+            type: 'POST',
+            url: 'http://localhost:8080/appointment/revert',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                patientId: appointmentData.patientId.toString(),
+                doctorId: appointmentData.doctorId.toString(),
+                date: appointmentData.appointmentDate,
+                timeSlot: appointmentData.timeSlot
+            }),
+            success: function() {
+                sessionStorage.removeItem('lockExpiryTime'); // Clear timer!
+                window.location.href = "BookAppointment.html";
+            },
+            error: function() {
+                sessionStorage.removeItem('lockExpiryTime'); // Clear timer!
+                window.location.href = "BookAppointment.html"; 
+            }
+        });
+    });
+
+    // --- HANDLE PAYMENT SUBMISSION ---
     $('#paymentForm').on('submit', function(e) {
         e.preventDefault();
 
@@ -83,7 +183,9 @@ $(document).ready(function() {
             totalAmount: $('#doctorFee').val()
         };
 
-        // UI State: Resetting all alert classes
+        // Stop the timer while processing
+        clearInterval(timerInterval);
+
         $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Processing...');
         $msg.hide().removeClass('alert-danger alert-success alert-warning');
 
@@ -96,9 +198,8 @@ $(document).ready(function() {
             success: function(payResponse) {
                 console.log("Billing Response:", payResponse);
 
-                // Safely convert response to lowercase string for checking
                 const status = (typeof payResponse === 'string') ? payResponse.trim().toLowerCase() : payResponse;
-				console.log("Response Data: ", status);
+                
                 // 🛑 CIRCUIT BREAKER STATE
                 if (status.includes("fail-fallback") || status.includes("unavailable")) {
                     $btn.prop('disabled', false).text('Pay & Book $' + parseFloat(appointmentData.doctorFee).toFixed(2));
@@ -107,28 +208,32 @@ $(document).ready(function() {
                 // ✅ SUCCESS STATE
                 else if (status === "success" || payResponse.status === "success") {
                     
-                    $btn.text('Booking Appointment...');
+                    $btn.text('Confirming Appointment Lock...');
 
-                    // STEP 2: APPOINTMENT API
+                    // STEP 2: APPOINTMENT API (Using the new Confirm Lock endpoint)
                     $.ajax({
-                        url: 'http://localhost:8080/appointment/addAppoint',
+                        url: `http://localhost:8080/appointment/confirmLock?patientId=${appointmentData.patientId}`,
                         type: 'POST',
                         contentType: 'application/json',
                         data: JSON.stringify(appointmentData),
                         success: function(appResponse) {
                             $msg.addClass('alert-success').html('<strong>✅ Success!</strong> Payment confirmed and appointment booked.').show();
+                            
+                            // Clean up session completely on success
                             sessionStorage.removeItem('appointmentFormDraft');
+                            sessionStorage.removeItem('lockExpiryTime');
+                            
                             setTimeout(() => { window.location.href = "Patient-DashBoard.html"; }, 2500);
                         },
                         error: function(xhr) {
                             console.error("Appointment Error:", xhr.responseText);
                             $btn.prop('disabled', false).text('Try Booking Again');
-                            $msg.addClass('alert-danger').html('Payment was successful, but booking failed. Please contact support.').show();
+                            $msg.addClass('alert-danger').html('Payment was successful, but your 10-minute session expired. Please contact support.').show();
                         }
                     });
 
                 } 
-                // ❌ NORMAL FAILURE STATE (E.g., Insufficient funds, bad card)
+                // ❌ NORMAL FAILURE STATE
                 else if (status === "fail") {
                     $btn.prop('disabled', false).text('Pay & Book $' + parseFloat(appointmentData.doctorFee).toFixed(2));
                     $msg.addClass('alert-danger').html('<strong>❌ Payment Declined:</strong> Your transaction could not be completed.').show();
