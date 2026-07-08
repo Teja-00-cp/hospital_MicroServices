@@ -43,7 +43,9 @@ public class SecurityConfig {
                     "/order/user/addDoctor",
                     "/order/get/**",
                     "/order/pat/getname/**", // 🚨 ADD THIS EXACT LINE HERE! 🚨
-                    "/order/pat/**"
+                    "/order/pat/**",
+                    "/order/user/**",
+                    "/order/getname/**"
                 ).permitAll()
                 .requestMatchers("/order/user/forgot/**").permitAll()
                 .anyRequest().authenticated()

@@ -184,6 +184,30 @@ public class AppointmentService {
         return finalSlotsWithHolds;
     }
 
+    // ==========================================
+    // 🆕 RESILIENCE4J FALLBACK METHODS
+    // ==========================================
+
+    // Fallback for getdoctorappbyToday
+    public Iterable<Object[]> fallbackGetDoctorAppByToday(String userName, LocalDate appointmentDate, Throwable throwable) {
+        System.out.println("⚠️ LOCAL FALLBACK ACTIVATED for getdoctorappbyToday! Reason: " + throwable.getMessage());
+        // Return an empty list so the doctor dashboard loads zero records instead of a 500 crash page!
+        return new ArrayList<Object[]>();
+    }
+
+    // Fallback for getBookedTimeSlots
+    public List<String> fallbackGetDoctorDetails(long doctorId, String appointmentDate, Throwable throwable) {
+        System.out.println("⚠️ LOCAL FALLBACK ACTIVATED for getBookedTimeSlots! Reason: " + throwable.getMessage());
+        // Return an empty list or a default message so the selection drop-down doesn't break
+        return new ArrayList<String>();
+    }
+
+    // Fallback for getBookedTimeSlotsByName
+    public List<String> fallbackGetBookedTimeSlotsByName(String doctorName, String appointmentDate, Throwable throwable) {
+        System.out.println("⚠️ LOCAL FALLBACK ACTIVATED for getBookedTimeSlotsByName! Reason: " + throwable.getMessage());
+        return new ArrayList<String>();
+    }
+
     public List<String> generateTimeSlots(LocalTime start, LocalTime end) {
         List<String> slots = new ArrayList<>();
         LocalTime currentTime = start;

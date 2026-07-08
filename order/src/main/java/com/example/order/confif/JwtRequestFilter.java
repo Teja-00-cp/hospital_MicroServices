@@ -27,6 +27,18 @@ public class JwtRequestFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
 
+            String requestURI = request.getRequestURI();
+                // System.out.println("🔍 DEBUG: Incoming request URI: " + requestURI);
+    // 🚨 ADD THIS CONDITIONAL CHECK AT THE VERY TOP OF THE FILTER:
+    if (requestURI.contains("/order/user/authenticate") || 
+        requestURI.contains("/order/user/forgot") || 
+        requestURI.contains("/order/user/addPatient")) {
+        System.out.println("⚠️ DEBUG: Skipping JWT validation for public endpoint: " + requestURI);
+        // Skip token validation completely and pass the request along!
+        chain.doFilter(request, response);
+        return;
+    }
+
         final String authorizationHeader = request.getHeader("Authorization");
 
         String username = null;

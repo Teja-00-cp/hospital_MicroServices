@@ -24,7 +24,8 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
     private final List<String> openApiEndpoints = List.of(
             "/order/user/authenticate",
             "/order/user/addPatient",
-            "/order/user/addDoctor"
+            "/order/user/addDoctor",
+            "/order/user"
     );
 
     @Override

@@ -45,7 +45,7 @@ public class DoctorContr {
     }
 
     @GetMapping("/getname/{name}")
-    @PreAuthorize("hasAnyAuthority('PATIENT', 'DOCTOR', 'ADMIN')")
+    // @PreAuthorize("hasAnyAuthority('PATIENT', 'DOCTOR', 'ADMIN','ROLE_PATIENT','ROLE_DOCTOR','ROLE_ADMIN')") // Patients, Doctors, and Admins can search by name
     public Doctor getbyName(@PathVariable String name){
         return doctorService.getbyName(name);
     }

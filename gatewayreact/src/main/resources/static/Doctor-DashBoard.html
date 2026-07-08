@@ -12,7 +12,7 @@
         
     <script>
         (function() {
-            if (localStorage.getItem('userRole') !== 'doctor') {
+            if (localStorage.getItem('userRole') !== 'DOCTOR') {
                 alert("Access denied. You must be a Doctor and logged in to view this page.");
                 window.location.href = 'Login.html';
             }
