@@ -134,5 +134,9 @@ public class UserSer {
 		     throw new UsernameNotFoundException("Invalid user request!");
 		 }
 	    }
+     public User findByUsername(String username) {
+        // TODO Auto-generated method stub
+        return userRepo.findByUsername(username).orElse(null);
+     }
 
 }

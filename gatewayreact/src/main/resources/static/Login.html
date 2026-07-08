@@ -4,25 +4,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login</title>
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <title>Login - Healing Haven Hospital</title>
     
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="/css/HF.css">
     <link rel="stylesheet" href="/css/Home.css">
+    <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
 
-    <link rel="stylesheet" type="text/css"
-        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
     <style>
-        /* body {
-            font-family: Arial, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background-color: #f0f2f5;
-        }*/
-
         .login-container {
             background-color: #a8a9aa;
             padding: 30px;
@@ -40,9 +30,10 @@
             margin-bottom: 15px;
         }
 
-        .my{
+        .my {
             background-color: #3b403d;
         }
+
         .form-control {
             width: 100%;
             padding: 10px;
@@ -59,7 +50,18 @@
             border: none;
             border-radius: 4px;
             cursor: pointer;
-        } 
+        }
+        
+        .forgot-btn {
+            background: none;
+            border: none;
+            padding: 0;
+        }
+        
+        .forgot-btn a {
+            color: #333;
+            text-decoration: underline;
+        }
     </style>
 </head>
 
@@ -73,114 +75,55 @@
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ml-auto">
+                    <li class="nav-item"><a class="nav-link" href="Home.html">Home</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#about-us">About Us</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#services">Services</a></li>
+                    <li class="nav-item"><a class="nav-link" href="Login.html">Login</a></li>
+                    <li class="nav-item"><a class="nav-link" href="Register.html">Register Patient</a></li>
+                    <li class="nav-item"><a class="nav-link" href="Doctor-Register.html">Doctor</a></li>
                     <li class="nav-item">
-                        <a class="nav-link" href="Home.html">Home</a>
+                        <button id="logoutButton" class="btn" style="color: white; display: none;">Logout</button>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#about-us">About Us</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#services">Services</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="Login.html">Login</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="Register.html"> Register Patient</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="Doctor-Register.html"> Doctor</a>
-                    </li>
-                    
-                    <button id="logoutButton" class="btn" style="color: white;">Logout</button>
                 </ul>
             </div>
         </div>
     </nav>
-    <div class="d-flex justify-content-center py-2 my">
-    <div class="login-container " >
-        <h2>Login</h2>
-        <form id="loginForm">
-            <div class="form-group">
-                <input type="text" id="username" class="form-control" placeholder="Username" required>
-            </div>
-            <div class="form-group">
-                <input type="password" id="password" class="form-control" placeholder="Password" required>
-            </div>
-            <div class="form-group">
-                <select id="role" class="form-control" required>
-                    <option value="" disabled selected>Select your role</option>
-                    <option value="PATIENT">Patient</option>
-                    <option value="DOCTOR">Doctor</option>
-                    <option value="ADMIN">Admin</option>
-                </select>
-            </div>
-            <button type="submit" class="btn-login">Login</button>
-            <button id="" class="mt-3"><a href="Forgotpassword.html">Forgot Password</a></button>
-        </form>
-        <p id="message" style="margin-top: 20px;"></p>
+
+    <div class="d-flex justify-content-center align-items-center py-5 my" style="min-height: 70vh;">
+        <div class="login-container">
+            <h2>Login</h2>
+            <form id="loginForm">
+                <div class="form-group">
+                    <input type="text" id="username" class="form-control" placeholder="Username" required>
+                </div>
+                <div class="form-group">
+                    <input type="password" id="password" class="form-control" placeholder="Password" required>
+                </div>
+                <div class="form-group">
+                    <select id="role" class="form-control" required>
+                        <option value="" disabled selected>Select your role</option>
+                        <option value="PATIENT">Patient</option>
+                        <option value="DOCTOR">Doctor</option>
+                        <option value="ADMIN">Admin</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn-login">Login</button>
+                <div class="mt-3">
+                    <button type="button" class="forgot-btn"><a href="Forgotpassword.html">Forgot Password</a></button>
+                </div>
+            </form>
+            <p id="message" style="margin-top: 20px; font-weight: bold;"></p>
+        </div>
     </div>
-</div>
-    <script>
-        $(document).ready(function () {
-    $('#loginForm').on('submit', function (e) {
-        e.preventDefault();
 
-        const authRequest = {
-            username: $('#username').val(),
-            password: $('#password').val(),
-            role: $('#role').val()
-        };
-
-        // Simple client-side validation
-        if (!authRequest.role) {
-            $('#message').css('color', 'orange').text('Please select a role.');
-            return;
-        }
-
-       // This is the correct way to handle the plain string response
-// coming from your backend's /authenticate endpoint.
-$.ajax({
-    url: 'http://localhost:8080/order/user/authenticate',
-    type: 'POST',
-    contentType: 'application/json',
-    data: JSON.stringify(authRequest),
-    success: function (token) {
-        // The backend returns the token as a string, so we use it directly
-        const userRole = authRequest.role.toLowerCase();
-        
-        // Save the JWT token and user role to local storage
-        sessionStorage.setItem('jwtToken', token);
-        sessionStorage.setItem('userRole', userRole);
-        sessionStorage.setItem('username', authRequest.username);
-        console.log(authRequest.username);
-        console.log("User Role:", userRole);
-        console.log("Token:", token);
-        $('#message').css('color', 'green').text('Login successful! Redirecting...');
-
-        // Redirect to the appropriate dashboard based on the role
-        window.location.href = `${userRole}-dashboard.html`;
-    },
-    error: function (error) {
-        $('#message').css('color', 'red').text('Invalid username, password, or role.');
-        console.error('Authentication failed:', error);
-    }
-});
-    });
-});
-    </script>
-    <footer class="footer">
+    <footer class="footer mt-auto py-3">
         <div class="container">
             <div class="row">
                 <div class="footer-col">
                     <h4>Contact Us</h4>
                     <ul>
-                        <li>
-                            <p>Email:hhh@gmail.com</p>
-                        </li>
-                        <li>
-                            <p>+91-9547856321</p>
-                        </li>
+                        <li><p>Email: hhh@gmail.com</p></li>
+                        <li><p>+91-9547856321</p></li>
                     </ul>
                 </div>
                 <div class="footer-col">
@@ -193,29 +136,10 @@ $.ajax({
                 </div>
                 <div class="footer-col">
                     <h4>Departments</h4>
-                    <ul>
-                        <li>
-                            <p>Gerenal</p>
-                        </li>
-                        <li>
-                            <p>ICU</p>
-                        </li>
-                        <li>
-                            <p>Emergency</p>
-                        </li>
-                        <li>
-                            <p>Cardiology</p>
-                        </li>
-                        <li>
-                            <p>Neurology</p>
-                        </li>
-                        <li>
-                            <p>Gynecology</p>
-                        </li>
-                    </ul>
+                    <p style="color: #bbb; font-size: 14px; margin-bottom: 0;">General, ICU, Emergency, Cardiology, Neurology, Gynecology</p>
                 </div>
                 <div class="footer-col">
-                    <h4>follow us</h4>
+                    <h4>Follow Us</h4>
                     <div class="social-links">
                         <a href="#"><i class="fab fa-facebook-f"></i></a>
                         <a href="#"><i class="fab fa-twitter"></i></a>
@@ -226,6 +150,61 @@ $.ajax({
             </div>
         </div>
     </footer>
+
+    <script>
+        $(document).ready(function () {
+            
+            const storedToken = localStorage.getItem('jwtToken');
+         const storedRole = localStorage.getItem('userRole');
+
+    if (storedToken && storedRole) {
+        // Redirect them straight away to their respective dashboard
+        window.location.href = `${storedRole}-dashboard.html`;
+        return; // Stop executing the rest of the script
+    }
+
+    // Standard Login form submission handler (same as before)
+    $('#loginForm').on('submit', function (e) {
+        e.preventDefault();
+
+        const authRequest = {
+            username: $('#username').val().trim(),
+            password: $('#password').val(),
+            role: $('#role').val() // "PATIENT", "DOCTOR", or "ADMIN"
+        };
+
+        $.ajax({
+            url: 'http://localhost:8080/order/user/authenticate',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(authRequest),
+            dataType: 'text',
+            success: function (token) {
+                const userRole = authRequest.role.toUpperCase(); // matches 'PATIENT', 'DOCTOR', 'ADMIN'
+
+                // Save data to localStorage
+                localStorage.setItem('jwtToken', token);
+                localStorage.setItem('userRole', userRole);
+                localStorage.setItem('username', authRequest.username);
+                
+                // Auto-route straight to their specific file path
+                window.location.href = `${userRole}-DashBoard.html`;
+            },
+            error: function (xhr) {
+                $('#message').css('color', 'red').text('Invalid credentials or unaligned role.');
+            }
+        });
+    });
+
+            // 6. Global Logout Event handling
+            $('#logoutButton').on('click', function() {
+                localStorage.clear();
+                $(this).hide();
+                $('#message').css('color', 'yellow').text('Logged out safely.');
+                window.location.href = 'Login.html';
+            });
+        });
+    </script>
 </body>
 
 </html>

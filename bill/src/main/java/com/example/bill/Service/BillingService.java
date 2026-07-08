@@ -19,14 +19,12 @@ import java.time.LocalDate;
 @Service
 public class BillingService {
 
-    private final PasswordEncoder passwordEncoder;
     private final BillRepository billRepository;
     private final WelcomrFeign welcomrFeign;
 
     // Standardized Constructor Injection
     @Autowired
-    public BillingService(PasswordEncoder passwordEncoder, BillRepository billRepository, WelcomrFeign welcomrFeign) {
-        this.passwordEncoder = passwordEncoder;
+    public BillingService(BillRepository billRepository, WelcomrFeign welcomrFeign) {
         this.billRepository = billRepository;
         this.welcomrFeign = welcomrFeign;
     }

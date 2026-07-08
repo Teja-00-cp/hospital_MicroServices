@@ -89,9 +89,19 @@ public class AppointmentController {
         appointmentService.updateAppointment(appointmentId);
     }
     
+    // --- UPDATED SECURE ENDPOINT ---
     @GetMapping("/appt/all")
-    public List<Object[]> allDetails(){
-        return appointmentService.allDetails();
+    public ResponseEntity<?> allDetails(@RequestHeader(value = "X-User-Role", required = false) String role) {
+        
+        System.out.println("DEBUG: Payment Service received Role from Gateway = " + role);
+        
+        // Manual Security Check: Reject if there is no role, or if the role isn't recognized
+        if (role == null || (!role.contains("PATIENT") && !role.contains("ADMIN") && !role.contains("DOCTOR"))) {
+            return ResponseEntity.status(403).body("Access Denied: You do not have permission.");
+        }
+        
+        // If the check passes, return the list of appointments as normal
+        return ResponseEntity.ok(appointmentService.allDetails());
     }
     
     @GetMapping("/giveallappoint")
@@ -105,9 +115,24 @@ public class AppointmentController {
     }
     
     @GetMapping("/appt/time/{doctorId}/{appointmentDate}")
-    @CircuitBreaker(name = "welcomeOrderServiceCircuit", fallbackMethod = "localFallback")
+    // @CircuitBreaker(name = "welcomeOrderServiceCircuit", fallbackMethod = "localFallback")
     public List<String> getBookedTimeSlots(@PathVariable long doctorId, @PathVariable String appointmentDate) {
         return appointmentService.getBookedTimeSlots(doctorId, appointmentDate);
+    }
+    
+    // --- ADD THIS FALLBACK METHOD ---
+    public List<String> localFallback(long doctorId, String appointmentDate, Throwable t) {
+        System.out.println("⚠️ DEBUG: Circuit Breaker triggered for getBookedTimeSlots! Reason: " + t.getMessage());
+        // Return an empty list so the frontend doesn't crash and allows all time slots
+        return java.util.Collections.emptyList(); 
+    }
+
+    // Add this to AppointmentService.java!
+    public List<String> fallbackGetDoctorDetails(long doctorId, String appointmentDate, Throwable t) {
+        System.out.println("⚠️ DEBUG: Service-level Circuit Breaker tripped! Reason: " + t.getMessage());
+        
+        // Return an empty list so the frontend doesn't crash and simply shows all time slots as available
+        return java.util.Collections.emptyList();
     }
     
     @GetMapping("/loadtest")

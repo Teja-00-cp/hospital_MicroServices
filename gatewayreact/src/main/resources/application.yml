@@ -1,23 +1,37 @@
 server:
   port: 8080
-
   tomcat:
     threads:
       max: 400      # Increase worker threads
     accept-count: 1000
+
 spring:
   application:
     name: API-GATEWAY
 
   cloud:
     gateway:
+      # --- ADDED: GLOBAL CORS TO FIX THE 401 OPTIONS ERROR ---
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            allowedOrigins: "*"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowedHeaders: "*"
+      # -------------------------------------------------------
+
       # 1. GATEWAY TIMEOUTS: Prevents Netty from cutting off slow responses early
       httpclient:
         connect-timeout: 8000     # 8 seconds in milliseconds
         response-timeout: 8s       # 8 seconds duration
-     
+      
       routes:
-        # Route to WELCOME-ORDER-SERVICE
+        # 1. Route to WELCOME-ORDER-SERVICE
         - id: welcome-service-route
           uri: lb://WELCOME-ORDER-SERVICE
           predicates:
@@ -28,7 +42,7 @@ spring:
                 name: welcomeCircuitBreaker 
                 fallbackUri: forward:/gateway-fallback/welcome 
 
-        # Route to BILL-SERVICE
+        # 2. Route to BILL-SERVICE
         - id: greet-service-route
           uri: lb://BILL-SERVICE
           predicates:
@@ -39,7 +53,7 @@ spring:
                 name: billCircuitBreaker
                 fallbackUri: forward:/gateway-fallback/bill
 
-        # Route to PAYMENT-SERVICE
+        # 3. Route to PAYMENT-SERVICE
         - id: payment-service-route
           uri: lb://PAYMENT-SERVICE
           predicates:
@@ -100,40 +114,3 @@ resilience4j:
         timeoutDuration: 8s
       paymentCircuitBreaker:
         timeoutDuration: 8s
-
-#
-# server:
-#   port: 8080
-#
-# spring:
-#   application:
-#     name: API-GATEWAY
-#
-#   cloud:
-#     gateway:
-#       routes:
-#         - id: welcome-service-route
-#           uri: lb://WELCOME-ORDER-SERVICE
-#           predicates:
-#             - Path=/order/**
-#           # filters:
-#           #   - StripPrefix=1
-#
-#         - id: greet-service-route
-#           uri: lb://BILL-SERVICE
-#           predicates:
-#             - Path=/bill/**
-#           # filters:
-#           #   - StripPrefix=1
-#
-#         - id: payment-service-route
-#           uri: lb://PAYMENT-SERVICE
-#           predicates:
-#             - Path=/appointment/**
-#           # filters:
-#           #   - StripPrefix=1
-#
-# eureka:
-#   client:
-#     service-url:
-#       defaultZone: http://localhost:8761/eureka

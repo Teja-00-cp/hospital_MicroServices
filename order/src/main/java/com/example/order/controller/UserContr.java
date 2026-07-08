@@ -1,9 +1,16 @@
 package com.example.order.controller;
 
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -16,6 +23,7 @@ import com.example.order.Dto.DoctorDao;
 import com.example.order.Dto.PatientDao;
 import com.example.order.Model.User;
 import com.example.order.Service.UserSer;
+import com.example.order.confif.JwtUtil;
 
 import jakarta.transaction.Transactional;
 
@@ -24,6 +32,17 @@ import jakarta.transaction.Transactional;
 @RequestMapping("/order/user")
 public class UserContr {
 
+
+	private final AuthenticationManager authenticationManager;
+    private final UserDetailsService userDetailsService;
+    private final JwtUtil jwtUtil;
+
+    public UserContr(AuthenticationManager authenticationManager,
+                     UserDetailsService userDetailsService, JwtUtil jwtUtil) {
+        this.authenticationManager = authenticationManager;
+        this.userDetailsService = userDetailsService;
+        this.jwtUtil = jwtUtil;
+    }
 
 	
 	@Autowired
@@ -82,9 +101,30 @@ public class UserContr {
 	public String forAllUsers() {
 		return "All Users can vieew";
 	}
+	
+	
 	@PostMapping("/authenticate")
-    public String authenticateAndGetToken(@RequestBody AuthRequest authRequest) {
-        return userSer.authenticateAndGetToken(authRequest);
+    public ResponseEntity<String> authenticateUser(@RequestBody AuthRequest authRequest) {
+        try {
+            // 1. Authenticate username and encrypted password via Spring Security
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(authRequest.getUsername(), authRequest.getPassword())
+            );
+        } catch (Exception e) {
+            return ResponseEntity.status(401).body("Invalid credentials");
+        }
+
+        // 2. Fetch User Details
+        final UserDetails userDetails = userDetailsService.loadUserByUsername(authRequest.getUsername());
+        
+        // 3. Format the role to map Spring Security expectations (e.g., "ROLE_PATIENT")
+        String formattedRole = "ROLE_" + authRequest.getRole();
+        // 4. Generate the JWT string containing the role
+        final String token = jwtUtil.generateToken(userDetails, formattedRole);
+
+        // 5. Return the raw string directly back to jQuery's success: function (token)
+        return ResponseEntity.ok(token);
     }
 
 }
+

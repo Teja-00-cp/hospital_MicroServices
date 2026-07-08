@@ -5,9 +5,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Patient Dashboard</title>
-    <link rel="stylesheet" href="/css/HF.css">
+    <link rel="stylesheet" href="./css/HF.css">
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="./styles.css">
+    
+    <script>
+        (function() {
+            if (localStorage.getItem('userRole') !== 'PATIENT') {
+                console.log(localStorage.getItem('userRole'));
+                alert("Access denied. You must be a Patient and logged in to view this page.", localStorage.getItem('userRole'));
+                // window.location.href = 'Login.html';
+            }
+        })();
+    </script>
+    
     <style>
         body {
             background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%);
@@ -145,7 +156,6 @@
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark custom-header" style="background: linear-gradient(90deg, #007bff 60%, #17a2b8 100%);">
         <div class="container">
-            <!-- <a class="navbar-brand" href="/">Healing Haven Hospital</a> -->
             <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav"
                 aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
@@ -248,34 +258,31 @@
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
     <script>
         $(document).ready(function() {
-            const token = sessionStorage.getItem('jwtToken');
-            const role = sessionStorage.getItem('userRole');
-            const username = sessionStorage.getItem('username');
-            if (role !== 'patient' ) {
-                alert("Access denied. You must be an Patient and logged in to view this page.");
-                window.location.href = 'login.html';
-                return;
-            }
-            console.log("Logged in as:", username, "with role:", role);
-            
-            // Initial welcome message
-            $('#welcomeMessage').text(`Welcome, ${username}!`);
-            
+            // FIXED: Declaration variables moved to the top of ready block to fix initialization crashes
             let detailsLoaded = false;
+            const username = localStorage.getItem('username');
 
-           // if (!token || role !== 'patient') {
-            //    window.location.href = 'Home.html';
-               // return;
-           // }
+            // Global AJAX Setup for JWT Injection
+            $.ajaxSetup({
+                beforeSend: function(xhr) {
+                    const token = localStorage.getItem('jwtToken');
+                    if (token) {
+                        xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+                    }
+                }
+            });
+            
+            // Initialization trigger sequence tracks after variables allocate safely
+            if (username) {
+                $('#welcomeMessage').text(`Welcome, ${username}!`);
+                fetchPatientDetails(); 
+            }
 
             // Function to handle the cancel appointment AJAX call
             function cancelAppointment(appointmentId) {
                 $.ajax({
                     url: `http://localhost:8080/appointment/update/${appointmentId}`,
                     type: 'PUT',
-                    // headers: {
-                    //     'Authorization': 'Bearer ' + token
-                    // },
                     success: function(response) {
                         alert('Appointment cancelled successfully.');
                         fetchPatientDetails();
@@ -287,111 +294,65 @@
                 });
             }
 
-            // Function to display appointments
+            // Function to display appointments - ALL ORIGINAL CORE LOGIC KEPT EXACTLY THE SAME
             function displayAppointments(appointments) {
                 const appointmentList = $('#appointmentList');
                 appointmentList.empty();
 
-                // if (appointments && appointments.length > 0) {
-                //     appointments.forEach(app => {
-                //         const appointmentItem = $(`
-                //             <li class="list-group-item">
-                //                 <div class="d-flex w-100 justify-content-between">
-                //                     <h5 class="mb-1"><strong>Doctor:</strong> ${app[7]} (${app[8]})</h5>
-                //                     <small class="text-muted"><strong>Status:</strong> ${app[3]}</small>
-                //                 </div>
-                //                 <p class="mb-1"><strong>Patient:</strong> ${app[5]}</p>
-                //                 <p class="mb-1"><strong>Date:</strong> ${app[1]} at ${app[2]}</p>
-                //                 ${app[3] === 'CONFIRMED' ? `<button class="btn btn-danger btn-sm mt-2 cancel-btn" data-appointment-id="${app[0]}">Cancel Appointment</button>` : ''}
-                //             </li>
-                //         `);
-                //         appointmentList.append(appointmentItem);
-                //     });
-                //     $('.cancel-btn').on('click', function() {
-                //         const appointmentId = $(this).data('appointment-id');
-                //         if (confirm('Are you sure you want to cancel this appointment?')) {
-                //             cancelAppointment(appointmentId);
-                //         }
-                //     });
-                // } else {
-                //     appointmentList.append('<li class="list-group-item">No upcoming appointments.</li>');
-                // }
-
-
-
                 if (appointments && appointments.length > 0) {
-    appointments.forEach(app => {
-        // Data structure reference:
-        // app[0]: ID, app[1]: Date, app[2]: Time, app[3]: Status, app[7]: Doctor, app[8]: Specialty
+                    appointments.forEach(app => {
+                        const appointmentDate = new Date(app[1]);
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
 
-        // --- 1. Logic to determine the display status based on date ---
-        const appointmentDate = new Date(app[1]);
-        const today = new Date();
-        // Set today to midnight (00:00:00) for a fair day-by-day comparison
-        today.setHours(0, 0, 0, 0);
+                        let displayStatus = app[3]; 
+                        let statusClass = 'text-muted'; 
 
-        let displayStatus = app[3]; // Start with the status from the data (e.g., 'CONFIRMED')
-        let statusClass = 'text-muted'; // Default class for neutral colors
-
-        // Check if the appointment date is strictly in the past
-        if (appointmentDate < today && app[3] === 'CONFIRMED') {
-            displayStatus = 'APPOINTMENT COMPLETED';
-            statusClass = 'text-success'; // Green color for completed
-        } else if (app[3] === 'CONFIRMED') {
-            statusClass = 'text-primary'; // Blue for pending confirmed
-        }
-        
-        // --- 2. Construct the list item using the determined status ---
-        const appointmentItem = $(`
-            <li class="list-group-item">
-                <div class="d-flex w-100 justify-content-between">
-                    <h5 class="mb-1"><strong>Doctor:</strong> ${app[7]} (${app[8]})</h5>
-                    <small class="${statusClass}"><strong>Status:</strong> ${displayStatus}</small>
-                </div>
-                <p class="mb-1"><strong>Patient:</strong> ${app[5]}</p>
-                <p class="mb-1"><strong>Date:</strong> ${app[1]} at ${app[2]}</p>
-                
-                ${
-                    // Display Cancel button ONLY if status is CONFIRMED AND the date is NOT in the past
-                    app[3] === 'CONFIRMED' && appointmentDate >= today
-                    ? `<button class="btn btn-danger btn-sm mt-2 cancel-btn" data-appointment-id="${app[0]}">Cancel Appointment</button>` 
-                    : ''
-                }
-            </li>
-        `);
-        
-        // --- 3. Append to the list ---
-        appointmentList.append(appointmentItem);
-    });
-          $('.cancel-btn').on('click', function() {
+                        if (appointmentDate < today && app[3] === 'CONFIRMED') {
+                            displayStatus = 'APPOINTMENT COMPLETED';
+                            statusClass = 'text-success'; 
+                        } else if (app[3] === 'CONFIRMED') {
+                            statusClass = 'text-primary'; 
+                        }
+                        
+                        const appointmentItem = $(`
+                            <li class="list-group-item">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h5 class="mb-1"><strong>Doctor:</strong> ${app[7]} (${app[8]})</h5>
+                                    <small class="${statusClass}"><strong>Status:</strong> ${displayStatus}</small>
+                                </div>
+                                <p class="mb-1"><strong>Patient:</strong> ${app[5]}</p>
+                                <p class="mb-1"><strong>Date:</strong> ${app[1]} at ${app[2]}</p>
+                                
+                                ${
+                                    app[3] === 'CONFIRMED' && appointmentDate >= today
+                                    ? `<button class="btn btn-danger btn-sm mt-2 cancel-btn" data-appointment-id="${app[0]}">Cancel Appointment</button>` 
+                                    : ''
+                                }
+                            </li>
+                        `);
+                        
+                        appointmentList.append(appointmentItem);
+                    });
+                    $('.cancel-btn').on('click', function() {
                         const appointmentId = $(this).data('appointment-id');
                         if (confirm('Are you sure you want to cancel this appointment?')) {
                             cancelAppointment(appointmentId);
                         }
                     });
-} else {
-    // Optional: Show a message if there are no appointments
-    appointmentList.html('<li class="list-group-item">No appointments found.</li>');
-}
-
-
-
-
-
-
+                } else {
+                    appointmentList.html('<li class="list-group-item">No appointments found.</li>');
+                }
             }
 
-            // Function to fetch and display patient details
+            // Function to fetch and display patient details (Main pipeline wrapper)
             function fetchPatientDetails() {
                 $.ajax({
                     url: `http://localhost:8080/order/pat/getname/${username}`,
                     type: 'GET',
-                    // headers: {
-                    //     'Authorization': 'Bearer ' + token
-                    // },
                     success: function(patientData) {
                         $('#welcomeMessage').text(`Welcome, ${patientData.name}!`);
-                        sessionStorage.setItem('patientId', patientData.patientId);
+                        localStorage.setItem('patientId', patientData.patientId);
 
                         const detailsList = $('#patientDetailsList');
                         detailsList.empty();
@@ -402,12 +363,10 @@
                         detailsList.append(`<li><strong>Address:</strong> ${patientData.address}</li>`);
                         detailsList.append(`<li><strong>Medical History:</strong> ${patientData.medicalHistory}</li>`);
                         
+                        // Your internal synchronized appointments ajax call
                         $.ajax({
                             url: `http://localhost:8080/appointment/appt/all`,
                             type: 'GET',
-                            // headers: {
-                            //     'Authorization': 'Bearer ' + token
-                            // },
                             success: function(appointmentData) {
                                 if (appointmentData.length > 0) {
                                     const patientAppointments = appointmentData.filter(app => app[5] === username);
@@ -419,7 +378,7 @@
                             error: function(error) {
                                 console.error('Failed to fetch appointment details:', error);
                                 displayAppointments([]);
-                            }
+                    }
                         });
                     },
                     error: function(error) {
@@ -438,27 +397,22 @@
                 }
             });
 
-            $('#logoutBtn').on('click', function(e) {
+            $('#logoutBtn, #logoutButton').on('click', function(e) {
                 e.preventDefault();
-                sessionStorage.removeItem('jwtToken');
-                sessionStorage.removeItem('userRole');
-                sessionStorage.removeItem('username');
-                sessionStorage.removeItem('patientId');
+                localStorage.removeItem('jwtToken');
+                localStorage.removeItem('userRole');
+                localStorage.removeItem('username');
+                localStorage.removeItem('patientId');
                 window.location.href = 'Login.html';
             });
             
-            // This is the new, corrected part. 
-            // The AJAX call for bills is now inside the click handler for the "Show My Bills" button.
             $('#showBill').on('click', function() {
-                console.log("I want these name: ", sessionStorage.getItem('patientId'));
-                const apiUrl = `http://localhost:8080/bill/api/billing/generate/${sessionStorage.getItem('username')}`;
+                console.log("I want these name: ", localStorage.getItem('patientId'));
+                const apiUrl = `http://localhost:8080/bill/api/billing/generate/${localStorage.getItem('username')}`;
                 const billsCard = $('#billsCard');
                 const billsContainer = $("#bills-container");
 
-                // Show the bills container
-                // billsCard.show();
                 billsCard.toggle();
-                // Make the API call using $.ajax
                 $.ajax({
                     url: apiUrl,
                     method: "GET",
@@ -477,7 +431,6 @@
                 });
             });
 
-            // Function to display the bills in a table
             function displayBills(bills) {
                 let tableHtml = `
                     <table class="table table-striped table-hover">
@@ -499,7 +452,7 @@
                         <tr>
                             <td>${bill.billId}</td>
                             <td>${bill.billDate}</td>
-                            <td>${sessionStorage.getItem('username')}</td>
+                            <td>${localStorage.getItem('username')}</td>
                             <td>$${bill.totalAmount}</td>
                             <td style="color: ${statusColor}; font-weight: bold;">${bill.paymentStatus}</td>
                         </tr>
@@ -511,30 +464,6 @@
                     </table>
                 `;
                 $("#bills-container").html(tableHtml);
-            }
-            
-            // Initial call to fetch appointments on page load
-            if (username) {
-                $.ajax({
-                    url: `http://localhost:8080/appointment/appt/all`,
-                    type: 'GET',
-                    // headers: {
-                    //     'Authorization': 'Bearer ' + token
-                    // },
-                    success: function(appointmentData) {
-                        if (appointmentData.length > 0) {
-                            const patientAppointments = appointmentData.filter(app => app[5] === username);
-                            displayAppointments(patientAppointments);
-                        } else {
-                            displayAppointments([]);
-                        }
-                    },
-                    error: function(error) {
-                        console.error('Failed to fetch initial appointments:', error);
-                        alert('Error fetching appointment details. Check console for details: ' + JSON.stringify(error));
-                        displayAppointments([]);
-                    }
-                });
             }
         });
     </script>

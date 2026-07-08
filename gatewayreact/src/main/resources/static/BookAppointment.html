@@ -8,6 +8,17 @@
     <link rel="stylesheet" href="/css/bookApp.css">
     <link rel="stylesheet" href="/css/HF.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    
+    <script>
+        (function() {
+            if (localStorage.getItem('userRole') !== 'PATIENT') {
+                console.warn("Access denied. User role is not PATIENT:", localStorage.getItem('userRole'));
+                alert("Access denied. You must be a Patient and logged in to view this page.",localStorage.getItem('userRole'));
+                // window.location.href = 'Login.html';
+            }
+        })();
+    </script>
+    
 </head>
 <body>
 
@@ -33,7 +44,7 @@
         <form id="appointmentForm">
             <div class="mb-3">
                 <label for="patientId" class="form-label">Patient ID</label>
-                <input type="number" class="form-control" id="patientId" name="patientId" required>
+                <input type="number" class="form-control" id="patientId" name="patientId" required readonly>
             </div>
 
             <div class="mb-3">
@@ -59,505 +70,241 @@
                 <input type="text" class="form-control" id="doctorFee" name="doctorFee" readonly>
             </div>
             <div class="d-grid gap-2">
-                <button type="button" id="payBillBtn" class="btn btn-success btn-lg">Pay Bill</button>
+                <button type="button" id="payBillBtn" class="btn btn-success btn-lg">Lock Slot & Pay Bill</button>
             </div>
-            </form>
+        </form>
     </div>
 </div>
 
-<div id="message-box" class="alert d-flex align-items-center" role="alert"></div>
+<div id="message-box" class="alert d-flex align-items-center" role="alert" style="display: none; position: fixed; top: 20px; right: 20px; z-index: 1050;"></div>
 
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
 <script>
     $(document).ready(function() {
-      const userRole = sessionStorage.getItem('userRole');
-            if (userRole !== 'patient' ) {
-                alert("Access denied. You must be an Patient and logged in to view this page.");
-                window.location.href = 'login.html';
-                return;
-            }
-        var isValid ;
-        const savedData = sessionStorage.getItem('appointmentFormDraft');
-    if (savedData) {
-        const data = JSON.parse(savedData);
-        $('#patientId').val(data.patientId);
-        $('#doctorId').val(data.doctorId).change(); // .change() triggers logic to reload fee/slots
-        $('#appointmentDate').val(data.appointmentDate);
-        // Note: timeSlot might need a delay if options are loaded via AJAX
-        setTimeout(() => $('#timeSlot').val(data.timeSlot), 500); 
-        $('#doctorFee').val(data.doctorFee);
-    }
-
-    // --- SAVE DATA WHEN CLICKING PAY BILL AND LOCK SLOT ---
-    $('#payBillBtn').on('click', function() {
-        const patientId = $('#patientId').val();
-        const doctorId = $('#doctorId').val();
-        const appointmentDate = $('#appointmentDate').val();
-        const timeSlot = $('#timeSlot').val();
-        const doctorFee = $('#doctorFee').val();
-
-        if (!patientId || !doctorId || !appointmentDate || !timeSlot) {
-            alert("Please fill out all fields and select a valid time slot first.");
-            return;
-        }
-
-        // Validate Date before locking
-        const selectedDate = new Date(appointmentDate);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        if (selectedDate < today) {
-            const messageBox = $('#message-box');
-            messageBox.removeClass('alert-success').addClass('alert-danger');
-            messageBox.html(`
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-exclamation-triangle-fill flex-shrink-0 me-2" viewBox="0 0 16 16">
-                    <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
-                </svg>
-                <div>Appointments cannot be booked for a past date. Please select a future date.</div>
-            `).css('display', 'flex');
-
-            setTimeout(function() {
-                messageBox.css('display', 'none');
-            }, 5000);
-            return;
-        }
-
-        // Build Payload for Redis Lock
-        const lockPayload = {
-            patientId: patientId.toString(),
-            doctorId: doctorId.toString(),
-            date: appointmentDate,
-            timeSlot: timeSlot
-        };
-
-        // Call the block API
-        $.ajax({
-            type: 'POST',
-            url: 'http://localhost:8080/appointment/block',
-            contentType: 'application/json',
-            data: JSON.stringify(lockPayload),
-            success: function(response) {
-                console.log("Slot secured:", response.message);
-                
-                const formData = {
-                    patientId: patientId,
-                    doctorId: doctorId,
-                    appointmentDate: appointmentDate,
-                    timeSlot: timeSlot,
-                    doctorFee: doctorFee
-                };
-
-                // Save to session storage
-                sessionStorage.setItem('appointmentFormDraft', JSON.stringify(formData));
-                
-                // Also save fee separately for the payment page to use
-                sessionStorage.setItem('tempFee', formData.doctorFee);
-
-                // Redirect to payment page
-                window.location.href = "payment.html";
-            },
-            error: function(xhr) {
-                const messageBox = $('#message-box');
-                messageBox.removeClass('alert-success').addClass('alert-danger');
-                messageBox.html(`
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-exclamation-triangle-fill flex-shrink-0 me-2" viewBox="0 0 16 16">
-                        <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
-                    </svg>
-                    <div>Sorry! This slot was just taken by another patient. Please select a different time.</div>
-                `).css('display', 'flex');
-
-                setTimeout(function() {
-                    messageBox.css('display', 'none');
-                }, 5000);
-
-                // Refresh slots
-                fetchBookedSlots();
+        // ADDED: Global AJAX Setup for JWT Injection
+        $.ajaxSetup({
+            beforeSend: function(xhr) {
+                const token = localStorage.getItem('jwtToken');
+                if (token) {
+                    xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+                }
             }
         });
-    });
 
-        const doctorFee={
-            "neurospecialist":150,
-            "cardiologist":120,
-            "dermatologist":95,
-            "Nearo":2344,
-            "Anesthesiology":220,
-            "Cardiology":200,
-            "Dentistry":180,
-            "Endocrinology":160,
-            "Gastroenterology":140,
-            "Hematology":115,
-            "Infectious Disease":110,
-            "Internal Medicine":105,
-            "General":112,
-            "Nephrology":100,
-            "Neurology":90,
-            "Obstetrics":85,
-            "Gynecology": 85,
-            "Ophthalmology":80,
-            "Orthopedics":75,
-            "Otolaryngology (ENT)":70,
-            "Pediatrics":65,
-            "Psychiatry":60,
-            "Pulmonology":55,
-            "Radiology":50,
-            "Rheumatology":45,
-            "Urology":40,
-            "General":35,
-            "Family Medicine":30,
-            "Geriatrics":25,
-            "Oncology":20,
-            "Palliative Care":15,
-            "Sports Medicine":10 
-
+        // --- 1. GLOBAL TAB SYNC & AUTO-REDIRECT ---
+        const existingLockTime = localStorage.getItem('lockExpiryTime');
+        if (existingLockTime && Date.now() < parseInt(existingLockTime)) {
+            alert("You have an ongoing appointment booking. Redirecting to payment...");
+            window.location.href = "payment.html";
+            return;
+        } else {
+            localStorage.removeItem('lockExpiryTime');
+            localStorage.removeItem('appointmentFormDraft');
         }
-        let doctorSpe=new Map();;
 
-        
-        const token = sessionStorage.getItem('jwtToken'),
-        username = sessionStorage.getItem('username');
-        console.log("username:", username);
-        // Define the full list of 30-minute time slots from 9:00 AM to 6:00 PM
-       $.ajax({
-                            type: 'GET',
-                            url: `http://localhost:8080/order/pat/getname/${username}`,
-                            // headers: {
-                            //     'Authorization': 'Bearer ' + token // Use the 'token' variable here
-                            // },
-                            success: function(patientData) { 
-                                    // Access the patientId property from the returned object
-                                    sessionStorage.setItem('patientId', patientData.patientId);
-                                    $('#patientId').val(patientData.patientId);
-                                    console.log("Patient ID stored in sessionStorage:", sessionStorage.getItem('patientId'));
-                               
-                            },
-                            error: function(xhr, status, error) {
-                                console.error("Error fetching patient ID:", error);
-                                alert("Login failed: could not retrieve patient details.",error);
-                            }
-                        });
+        // --- 2. UPDATED: Authentication Check to localStorage ---
+        const username = localStorage.getItem('username');
 
+        // --- 3. Fees and Specializations Mapping ---
+        const doctorFee = {
+            "neurospecialist":150, "cardiologist":120, "dermatologist":95,
+            "Nearo":2344, "Anesthesiology":220, "Cardiology":200, "Dentistry":180,
+            "Endocrinology":160, "Gastroenterology":140, "Hematology":115,
+            "Infectious Disease":110, "Internal Medicine":105, "General":112,
+            "Nephrology":100, "Neurology":90, "Obstetrics":85, "Gynecology": 85,
+            "Ophthalmology":80, "Orthopedics":75, "Otolaryngology (ENT)":70,
+            "Pediatrics":65, "Psychiatry":60, "Pulmonology":55, "Radiology":50,
+            "Rheumatology":45, "Urology":40, "General":35, "Family Medicine":30,
+            "Geriatrics":25, "Oncology":20, "Palliative Care":15, "Sports Medicine":10 
+        };
+        let doctorSpe = new Map();
 
-        $('#patientId').val(sessionStorage.getItem('patientId'));
+        // --- 4. Fetch Patient Details ---
+        $.ajax({
+            type: 'GET',
+            url: `http://localhost:8080/order/pat/getname/${username}`,
+            success: function(patientData) { 
+                // CHANGED: sessionStorage to localStorage
+                localStorage.setItem('patientId', patientData.patientId);
+                $('#patientId').val(patientData.patientId);
+            },
+            error: function(xhr, status, error) {
+                console.error("Error fetching patient ID:", error);
+                alert("Login failed: could not retrieve patient details.");
+            }
+        });
+
         const allTimeSlots = [
-            '09:00 AM - 09:30 AM',
-            '09:30 AM - 10:00 AM',
-            '10:00 AM - 10:30 AM',
-            '10:30 AM - 11:00 AM',
-            '11:00 AM - 11:30 AM',
-            '11:30 AM - 12:00 PM',
-            '12:00 PM - 12:30 PM',
-            '12:30 PM - 01:00 PM',
-            '01:00 PM - 01:30 PM',
-            '01:30 PM - 02:00 PM',
-            '02:00 PM - 02:30 PM',
-            '02:30 PM - 03:00 PM',
-            '03:00 PM - 03:30 PM',
-            '03:30 PM - 04:00 PM',
-            '04:00 PM - 04:30 PM',
-            '04:30 PM - 05:00 PM',
-            '05:00 PM - 05:30 PM',
-            '05:30 PM - 06:00 PM'
+            '09:00 AM - 09:30 AM', '09:30 AM - 10:00 AM', '10:00 AM - 10:30 AM',
+            '10:30 AM - 11:00 AM', '11:00 AM - 11:30 AM', '11:30 AM - 12:00 PM',
+            '12:00 PM - 12:30 PM', '12:30 PM - 01:00 PM', '01:00 PM - 01:30 PM',
+            '01:30 PM - 02:00 PM', '02:00 PM - 02:30 PM', '02:30 PM - 03:00 PM',
+            '03:00 PM - 03:30 PM', '03:30 PM - 04:00 PM', '04:00 PM - 04:30 PM',
+            '04:30 PM - 05:00 PM', '05:00 PM - 05:30 PM', '05:30 PM - 06:00 PM'
         ];
 
-        // Function to populate the time slot dropdown
-        // function populateTimeSlots(availableSlots) {
-        //     const timeSlotSelect = $('#timeSlot');
-        //     timeSlotSelect.empty().append($('<option>', {
-        //         value: '',
-        //         text: 'Choose a time slot',
-        //         disabled: true,
-        //         selected: true
-        //     }));
-
-        //     if (availableSlots.length > 0) {
-        //         availableSlots.forEach(time => {
-        //             timeSlotSelect.append($('<option>', {
-        //                 value: time,
-        //                 text: time
-        //             }));
-        //         });
-        //     } else {
-        //         timeSlotSelect.append($('<option>', {
-        //             value: '',
-        //             text: 'No slots available',
-        //             disabled: true
-        //         }));
-        //     }
-        // }
-
-
-        // Function to populate the time slot dropdown
+        // --- 5. Populate Time Slots (Handling "On Hold") ---
         function populateTimeSlots(availableSlots) {
             const timeSlotSelect = $('#timeSlot');
             timeSlotSelect.empty().append($('<option>', {
-                value: '',
-                text: 'Choose a time slot',
-                disabled: true,
-                selected: true
+                value: '', text: 'Choose a time slot', disabled: true, selected: true
             }));
 
             if (availableSlots.length > 0) {
                 availableSlots.forEach(time => {
-                    // Check if the backend marked this slot as on hold
                     const isOnHold = time.includes('(On Hold)');
-                    
-                    // Remove the "(On Hold)" text from the actual HTML value. 
-                    // This ensures that when we send the data back to the server, 
-                    // it sends the clean time (e.g., "09:30 AM - 10:00 AM")
                     const cleanTimeValue = time.replace(' (On Hold)', ''); 
 
                     timeSlotSelect.append($('<option>', {
                         value: cleanTimeValue,
-                        text: time,             // Shows "09:30 AM - 10:00 AM (On Hold)" visually
-                        disabled: isOnHold      // Greys out the row so no one can click it!
+                        text: time, 
+                        disabled: isOnHold
                     }));
                 });
             } else {
                 timeSlotSelect.append($('<option>', {
-                    value: '',
-                    text: 'No slots available',
-                    disabled: true
+                    value: '', text: 'No slots available', disabled: true
                 }));
             }
         }
         
-        // This is the new function to handle fetching booked slots based on doctor and date
-        var doctorId;
         function fetchBookedSlots() {
-             doctorId = $('#doctorId').val();
+            const doctorId = $('#doctorId').val();
             const appointmentDate = $('#appointmentDate').val();
 
-            // Only make the AJAX call if both a doctor and a date are selected
             if (doctorId && appointmentDate) {
-                // $("#doctorFee").val(doctorFee[doctorSpe.get(doctorId)]);
-                console.log(doctorSpe);
-                console.log(doctorId,"Id was: ",doctorSpe.get(Number(doctorId)),"fees might be",doctorFee[doctorSpe.get(Number(doctorId))])
-                $('#doctorFee').val(doctorFee[doctorSpe.get(Number(doctorId))]);
+                $('#doctorFee').val(doctorFee[doctorSpe.get(Number(doctorId))] || 100);
           
                 $.ajax({
                     type: 'GET',
                     url: `http://localhost:8080/appointment/appt/time/${doctorId}/${appointmentDate}`,
-            //         headers: {
-            //     'Authorization': 'Bearer ' + token
-            // },
                     success: function(bookedSlots) {
-                        // Determine which slots are available by filtering out the booked ones
-                        // const availableSlots = allTimeSlots.filter(slot => !bookedSlots.includes(slot));
                         populateTimeSlots(bookedSlots);
                     },
                     error: function(xhr, status, error) {
                         console.error('Error fetching booked time slots:', error);
-                        let detailedMessage = xhr.responseText || error;
-                        alert('Error fetching booked time slots. Check console for details: ' + detailedMessage);
-                        // Revert to all slots on error to avoid leaving the user with an empty list
                         populateTimeSlots(allTimeSlots);
                     }
                 });
             } else {
-                // If either doctor or date is not selected, show all time slots
                 populateTimeSlots(allTimeSlots);
             }
         }
 
-        // --- Start of Event Listeners and other code ---
-
-        // Event listeners for when the doctor or date changes
-        // Both events now trigger the same centralized function
         $('#doctorId').on('change', fetchBookedSlots);
         $('#appointmentDate').on('change', fetchBookedSlots);
 
-        // Function to fetch doctor IDs and populate the dropdown
+        // --- 6. Fetch Doctors ---
         function fetchDoctors() {
             $.ajax({
                 type: 'GET',
                 url: 'http://localhost:8080/order/getalldoc',
                 dataType: 'json',
-            //     headers: {
-            //     'Authorization': 'Bearer ' + token
-            // },
                 success: function(data) {
                     const doctorSelect = $('#doctorId');
                     doctorSelect.empty().append($('<option>', {
-                        value: '',
-                        text: 'Select a doctor',
-                        disabled: true,
-                        selected: true
+                        value: '', text: 'Select a doctor', disabled: true, selected: true
                     }));
-                   
+                    
                     if (typeof data === 'object' && data !== null) {
                         $.each(data, function(id, name) {
                             doctorSpe.set(data[id].doctorId, data[id].specialization);
                             doctorSelect.append($('<option>', {
                                 value: data[id].doctorId,
-                                text: `Dr. ${data[id].name} (ID: ${data[id].doctorId})  and Specialization: ${data[id].specialization})`
+                                text: `Dr. ${data[id].name} (Specialization: ${data[id].specialization})`
                             }));
                         });
-                    } else {
-                        console.error('API did not return a valid object of doctors.');
-                        doctorSelect.empty().append($('<option>', {
-                            value: '',
-                            text: 'Failed to load doctors',
-                            disabled: true,
-                            selected: true
-                        }));
                     }
-                    console.log('fee',doctorSpe);
                 },
                 error: function(xhr, status, error) {
-                    console.error('Error fetching doctors:', error);
-alert('Error fetching appointment details. Check console for details: ' + JSON.stringify(error));                    $('#doctorId').empty().append($('<option>', {
-                        value: '',
-                        text: 'Failed to load doctors',
-                        disabled: true,
-                        selected: true
+                    $('#doctorId').empty().append($('<option>', {
+                        value: '', text: 'Failed to load doctors', disabled: true, selected: true
                     }));
                 }
             });
         }
-       
         
-        // Call the function to fetch doctors when the page loads
         fetchDoctors();
-        // Populate time slots initially
         populateTimeSlots(allTimeSlots);
 
-        // Handle form submission
-        $('#appointmentForm').on('submit', function(event) {
-            if(!isValid){
-                alert("Please make payment first Or Select payment first Or Select Doctor");
-                return false;
-            }
-            event.preventDefault();
+        // --- 7. PAY BILL & LOCK SLOT LOGIC ---
+        $('#payBillBtn').on('click', function() {
+            const patientId = $('#patientId').val();
+            const doctorId = $('#doctorId').val();
             const appointmentDate = $('#appointmentDate').val();
-        const selectedDate = new Date(appointmentDate);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0); // Normalize today's date to midnight
-        selectedDate.setHours(0, 0, 0, 0); // Normalize selected date to midnight
+            const timeSlot = $('#timeSlot').val();
+            const fee = $('#doctorFee').val();
 
-        if (selectedDate < today) {
-            const messageBox = $('#message-box');
-            messageBox.removeClass('alert-success').addClass('alert-danger');
-            messageBox.html(`
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-exclamation-triangle-fill flex-shrink-0 me-2" viewBox="0 0 16 16">
-                    <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
-                </svg>
-                <div>Appointments cannot be booked for a past date. Please select a future date.</div>
-            `).css('display', 'flex');
+            if (!patientId || !doctorId || !appointmentDate || !timeSlot) {
+                alert("Please fill out all fields and select a valid time slot first.");
+                return;
+            }
 
-            setTimeout(function() {
-                messageBox.css('display', 'none');
-            }, 5000);
-            return false; // Prevent form submission
-        }
+            // Date Validation
+            const selectedDate = new Date(appointmentDate);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
 
-            const formData = {
-                
-                    patientId: parseInt($('#patientId').val())
-                ,
-                    doctorId: parseInt($('#doctorId').val())
-                ,
-                appointmentDate: $('#appointmentDate').val(),
-                timeSlot: $('#timeSlot').val(),
-                status: 'CONFIRMED'
+            if (selectedDate < today) {
+                const messageBox = $('#message-box');
+                messageBox.removeClass('alert-success').addClass('alert-danger');
+                messageBox.html(`<div>❌ Appointments cannot be booked for a past date. Please select a future date.</div>`).css('display', 'flex');
+                setTimeout(() => messageBox.css('display', 'none'), 5000);
+                return;
+            }
+
+            // Build Payload for Redis Lock
+            const lockPayload = {
+                patientId: patientId.toString(),
+                doctorId: doctorId.toString(),
+                date: appointmentDate,
+                timeSlot: timeSlot
             };
-            console.log('Form Data:', formData);
 
-            // $.ajax({
-            //     type: 'POST',
-            //     url: 'http://localhost:8080/appointment/addAppoint',
-            //     contentType: 'application/json',
-            //     data: JSON.stringify(formData),  
-            // //     headers: {
-            // //     'Authorization': 'Bearer ' + token
-            // // },
-            //     success: function(response) {
-            //         console.log('Success:', response);
-                   
-            //         const messageBox = $('#message-box');
-            //         messageBox.removeClass('alert-danger').addClass('alert-success');
-            //         messageBox.html(`
-            //             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-check-circle-fill flex-shrink-0 me-2" viewBox="0 0 16 16">
-            //                 <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/>
-            //             </svg>
-            //             <div>Appointment booked successfully!</div>
-            //         `).css('display', 'flex');
-            //             isValid=false;
-            //         setTimeout(function() {
-            //             messageBox.css('display', 'none');
-            //             $('#appointmentForm')[0].reset();
-            //             // Re-fetch time slots to update the list after a successful booking
-            //             fetchBookedSlots();
-            //         window.location.href = `Patient-DashBoard.html`;
-            //         }, 3000);
-            //     },
-            //     error: function(xhr, status, error) {
-            //         console.error('Error:', error);
-                   
-            //         const messageBox = $('#message-box');
-            //         messageBox.removeClass('alert-success').addClass('alert-danger');
-            //         messageBox.html(`
-            //             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-exclamation-triangle-fill flex-shrink-0 me-2" viewBox="0 0 16 16">
-            //                 <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
-            //             </svg>
-            //             <div>Error booking appointment. Please try again.</div>
-            //         `).css('display', 'flex');
-                   
-            //         setTimeout(function() {
-            //             messageBox.css('display', 'none');
-            //         }, 5000);
-            //     }
-            // });
+            // Call the block API
+            $.ajax({
+                type: 'POST',
+                url: 'http://localhost:8080/appointment/block',
+                contentType: 'application/json',
+                data: JSON.stringify(lockPayload),
+                success: function(response) {
+                    const formData = {
+                        patientId: patientId,
+                        doctorId: doctorId,
+                        appointmentDate: appointmentDate,
+                        timeSlot: timeSlot,
+                        doctorFee: fee
+                    };
+
+                    // Save to LOCAL storage for tab sync
+                    localStorage.setItem('appointmentFormDraft', JSON.stringify(formData));
+                    
+                    // Start the 10-minute clock right now!
+                    const expiryTime = Date.now() + 10 * 60 * 1000;
+                    localStorage.setItem('lockExpiryTime', expiryTime);
+
+                    window.location.href = "payment.html";
+                },
+                error: function(xhr) {
+                    const messageBox = $('#message-box');
+                    messageBox.removeClass('alert-success').addClass('alert-danger');
+                    messageBox.html(`<div>❌ Sorry! This slot was just taken by another patient. Please select a different time.</div>`).css('display', 'flex');
+                    setTimeout(() => messageBox.css('display', 'none'), 5000);
+                    fetchBookedSlots();
+                }
+            });
         });
-        // $('.btn-success').on('click', function() {
-        //         // In a real application, you would get these values dynamically from form inputs.
-        //         // For this example, they are hardcoded.
-        //         var billData = {
-        //     patientId: sessionStorage.getItem('patientId'), // Replace with actual patient ID
-        //     totalAmount: doctorFee[doctorSpe.get(Number(doctorId))] // Replace with actual total amount
-        //     };
-        //     console.log('Bill Data:', billData);
-        //         // Perform the AJAX POST request
-        //         if(doctorFee[doctorSpe.get(Number(doctorId))]){
-        //         $.ajax({
-        //             url: 'http://localhost:8080/bill/api/billing/pay/add',
-        //             type: 'POST',
-        //             contentType: 'application/json',
-        //             data: JSON.stringify(billData),
-        //             success: function(response) {
-        //                 isValid = true;
-        //                 // Log the successful response to the console
-        //                 console.log('Payment process successful.');
-        //                 console.log('Server response:', response);
-                        
-        //                 // Show a success message to the user
-        //                 alert(response==="success"?'Payment successful! Your transaction has been completed.':response);
-        //             },
-        //             error: function(xhr, status, error) {
-        //                 // Log the error details to the console for debugging
-        //                 console.error('An error occurred during payment processing.');
-        //                 console.error('Error details:', xhr.responseText);
-                        
-        //                 // Show an error message to the user
-        //                 showMessage('Payment failed!', false);
-        //             }
-        //         });
-        //     }
-        //         else{
-        //             alert("Please make payment first Or Select payment first.");
-        //         }
-        //     });
-            
     });
 </script>
+
 <footer class="footer">
     <div class="container">
         <div class="row">
             <div class="footer-col">
                 <h4>Contact Us</h4>
                 <ul>
-                    <li><p>Email:hhh@gmail.com</p></li>
+                    <li><p>Email: hhh@gmail.com</p></li>
                     <li><p>+91-9547856321</p></li>
                 </ul>
             </div>
@@ -573,7 +320,7 @@ alert('Error fetching appointment details. Check console for details: ' + JSON.s
             <div class="footer-col">
                 <h4>Departments</h4>
                 <ul>
-                    <li><p>Gerenal</p></li>
+                    <li><p>General</p></li>
                     <li><p>ICU</p></li>
                     <li><p>Emergency</p></li>
                     <li><p>Cardiology</p></li>
@@ -582,7 +329,7 @@ alert('Error fetching appointment details. Check console for details: ' + JSON.s
                 </ul>
             </div>
             <div class="footer-col">
-                <h4>follow us</h4>
+                <h4>Follow us</h4>
                 <div class="social-links">
                     <a href="#"><i class="fab fa-facebook-f"></i></a>
                     <a href="#"><i class="fab fa-twitter"></i></a>

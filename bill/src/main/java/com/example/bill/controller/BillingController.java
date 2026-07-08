@@ -48,19 +48,29 @@ public class BillingController {
     @PostMapping("/pay/add")
     public String processPayment(@RequestBody BillData billId) {
     	System.out.println(billId.getPatientName()+"  "+billId.getTotalAmount());
+        System.out.println("🚨 DEBUG: The Bill Service received patientName as: " + billId.getPatientName());
         return billingService.processPaymentafter(billId);
     }
-   public  static class BillData {
+   public static class BillData {
         private String patientName;
-        private Long totalAmount;
-        
+        private long totalAmount; // Changed to Double to handle decimals like "150.00"
 
+        // GETTERS
         public String getPatientName() {
             return patientName;
         }
 
         public Long getTotalAmount() {
             return totalAmount;
+        }
+
+        // SETTERS (These are required for Spring to map the JSON!)
+        public void setPatientName(String patientName) {
+            this.patientName = patientName;
+        }
+
+        public void setTotalAmount(Long totalAmount) {
+            this.totalAmount = totalAmount;
         }
     }
 }

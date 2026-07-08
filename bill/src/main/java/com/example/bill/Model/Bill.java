@@ -59,7 +59,7 @@ public class Bill {
 		return totalAmount;
 	}
 
-	public void setTotalAmount(long totalAmount) {
+	public void setTotalAmount(Long totalAmount) {
 		this.totalAmount = totalAmount;
 	}
 

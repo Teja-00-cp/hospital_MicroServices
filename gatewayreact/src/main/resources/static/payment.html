@@ -26,7 +26,7 @@
             
             <div class="text-center mb-4">
                 <div class="timer-text">
-                    ⏳ Time remaining to complete payment: <span id="countdownTimer" style="font-size: 1.2rem;">10:00</span>
+                    ⏳ Time remaining to complete payment: <span id="countdownTimer" style="font-size: 1.2rem;">--:--</span>
                 </div>
             </div>
 
@@ -64,8 +64,24 @@
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
 $(document).ready(function() {
-    const username = sessionStorage.getItem('username');
-    const draftString = sessionStorage.getItem('appointmentFormDraft');
+    $.ajaxSetup({
+        beforeSend: function(xhr) {
+            const token = localStorage.getItem('jwtToken');
+            if (token) {
+                xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+            }
+        }
+    });
+    // Try switching this back to sessionStorage if localStorage was returning null
+    let username1 = sessionStorage.getItem('username');
+    
+    // Fallback: If it's still empty, try localStorage
+    if (!username1) {
+        username1 = localStorage.getItem('username');
+    }
+    const username = username1;
+    // Read from LOCAL storage
+    const draftString = localStorage.getItem('appointmentFormDraft');
 
     if (username) $('#patientDisplayName').text(username);
 
@@ -83,19 +99,17 @@ $(document).ready(function() {
         $('#displayAmount').text('$' + parseFloat(appointmentData.doctorFee).toFixed(2));
     }
 
-    // Populate the new Date & Time box
+    // Populate the Date & Time box
     $('#displayTimeSlot').text(appointmentData.appointmentDate + " at " + appointmentData.timeSlot);
 
     // ==========================================
-    // DYNAMIC 10-MINUTE COUNTDOWN TIMER LOGIC
+    // DYNAMIC SYNCED COUNTDOWN TIMER
     // ==========================================
     
-    // Check if a timer is already running for this session
-    let expiryTime = sessionStorage.getItem('lockExpiryTime');
+    let expiryTime = localStorage.getItem('lockExpiryTime');
     if (!expiryTime) {
-        // If not, set it for 10 minutes (600,000 ms) from exactly right now
         expiryTime = Date.now() + 10 * 60 * 1000;
-        sessionStorage.setItem('lockExpiryTime', expiryTime);
+        localStorage.setItem('lockExpiryTime', expiryTime);
     }
 
     const timerInterval = setInterval(function() {
@@ -122,27 +136,24 @@ $(document).ready(function() {
                     timeSlot: appointmentData.timeSlot
                 }),
                 complete: function() {
-                    // Clean up and boot them back to the calendar
-                    sessionStorage.removeItem('lockExpiryTime');
-                    sessionStorage.removeItem('appointmentFormDraft');
+                    // Clean up GLOBAL storage and kick them out
+                    localStorage.removeItem('lockExpiryTime');
+                    localStorage.removeItem('appointmentFormDraft');
                     window.location.href = "BookAppointment.html";
                 }
             });
             return;
         }
 
-        // Calculate minutes and seconds
         const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
         const seconds = Math.floor((distance % (1000 * 60)) / 1000);
 
-        // Format to always show two digits (e.g., 09:05)
         const formattedMinutes = minutes < 10 ? "0" + minutes : minutes;
         const formattedSeconds = seconds < 10 ? "0" + seconds : seconds;
 
-        // Display the result
         $('#countdownTimer').text(formattedMinutes + ":" + formattedSeconds);
-    }, 1000); // Update every 1 second
-    
+    }, 1000); 
+
     // ==========================================
 
     // --- HANDLE CANCEL / BACK BUTTON ---
@@ -159,13 +170,10 @@ $(document).ready(function() {
                 date: appointmentData.appointmentDate,
                 timeSlot: appointmentData.timeSlot
             }),
-            success: function() {
-                sessionStorage.removeItem('lockExpiryTime'); // Clear timer!
+            complete: function() {
+                localStorage.removeItem('lockExpiryTime'); 
+                localStorage.removeItem('appointmentFormDraft');
                 window.location.href = "BookAppointment.html";
-            },
-            error: function() {
-                sessionStorage.removeItem('lockExpiryTime'); // Clear timer!
-                window.location.href = "BookAppointment.html"; 
             }
         });
     });
@@ -177,75 +185,59 @@ $(document).ready(function() {
         const $btn = $('#submitBtn');
         const $msg = $('#message-box');
         
-        // Prepare Data
         const billData = {
             patientName: username,
             totalAmount: $('#doctorFee').val()
         };
 
-        // Stop the timer while processing
         clearInterval(timerInterval);
-
         $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Processing...');
-        $msg.hide().removeClass('alert-danger alert-success alert-warning');
 
-        // STEP 1: BILLING API
         $.ajax({
             url: 'http://localhost:8080/bill/api/billing/pay/add',
             type: 'POST',
             contentType: 'application/json',
             data: JSON.stringify(billData),
             success: function(payResponse) {
-                console.log("Billing Response:", payResponse);
-
                 const status = (typeof payResponse === 'string') ? payResponse.trim().toLowerCase() : payResponse;
                 
-                // 🛑 CIRCUIT BREAKER STATE
                 if (status.includes("fail-fallback") || status.includes("unavailable")) {
                     $btn.prop('disabled', false).text('Pay & Book $' + parseFloat(appointmentData.doctorFee).toFixed(2));
                     $msg.addClass('alert-warning').html('<strong>⚠️ Service Unavailable:</strong> The payment system is experiencing heavy load. Please try again in a few minutes.').show();
                 } 
-                // ✅ SUCCESS STATE
                 else if (status === "success" || payResponse.status === "success") {
-                    
                     $btn.text('Confirming Appointment Lock...');
 
-                    // STEP 2: APPOINTMENT API (Using the new Confirm Lock endpoint)
                     $.ajax({
                         url: `http://localhost:8080/appointment/confirmLock?patientId=${appointmentData.patientId}`,
                         type: 'POST',
                         contentType: 'application/json',
                         data: JSON.stringify(appointmentData),
-                        success: function(appResponse) {
+                        success: function() {
                             $msg.addClass('alert-success').html('<strong>✅ Success!</strong> Payment confirmed and appointment booked.').show();
                             
-                            // Clean up session completely on success
-                            sessionStorage.removeItem('appointmentFormDraft');
-                            sessionStorage.removeItem('lockExpiryTime');
+                            // 🧹 CLEAN UP GLOBAL STORAGE SO THEY CAN BOOK AGAIN LATER!
+                            localStorage.removeItem('appointmentFormDraft');
+                            localStorage.removeItem('lockExpiryTime');
                             
                             setTimeout(() => { window.location.href = "Patient-DashBoard.html"; }, 2500);
                         },
                         error: function(xhr) {
-                            console.error("Appointment Error:", xhr.responseText);
                             $btn.prop('disabled', false).text('Try Booking Again');
                             $msg.addClass('alert-danger').html('Payment was successful, but your 10-minute session expired. Please contact support.').show();
                         }
                     });
-
                 } 
-                // ❌ NORMAL FAILURE STATE
                 else if (status === "fail") {
                     $btn.prop('disabled', false).text('Pay & Book $' + parseFloat(appointmentData.doctorFee).toFixed(2));
                     $msg.addClass('alert-danger').html('<strong>❌ Payment Declined:</strong> Your transaction could not be completed.').show();
                 } 
-                // ❓ UNKNOWN RESPONSE
                 else {
                     $btn.prop('disabled', false).text('Pay & Book $' + parseFloat(appointmentData.doctorFee).toFixed(2));
                     $msg.addClass('alert-danger').html('<strong>Error:</strong> Unexpected server response.').show();
                 }
             },
             error: function(xhr) {
-                console.error("Payment Error Details:", xhr);
                 $btn.prop('disabled', false).text('Pay & Book $' + parseFloat(appointmentData.doctorFee).toFixed(2));
                 $msg.addClass('alert-danger').html('<strong>🚨 Network Error:</strong> Cannot connect to the hospital servers.').show();
             }

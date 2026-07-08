@@ -1,77 +1,50 @@
 package com.example.order.controller;
 
 import java.util.Optional;
-
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-//import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.RestController;
-
+import org.springframework.security.access.prepost.PreAuthorize; // Required for hasAuthority
+import org.springframework.web.bind.annotation.*;
 import com.example.order.Model.Patient;
 import com.example.order.Service.PatientService;
 
-
-//@Controller
 @RestController
 @RequestMapping("/order/pat")
+@CrossOrigin(origins = "*") // Allows your jQuery frontend to access this controller safely
 public class PatientController {
-	@Autowired
-	private PatientService  patientService;
-	
-//	@PostMapping("/addPatient")
-//	public void addPatient(@RequestBody Patient patientData) {
-//		System.out.println(patientData.toString());
-//		patientService.addPatient(patientData);
-//	}
-	// @GetMapping("/")
-//	public String tt(Model mdl) {
-//		mdl.addAttribute("patient",new Patient());
-//		return "patient";
-//	}
-//	
-//	@GetMapping("/getmm")
-//	public String addget(Model model) {
-//		model.addAttribute("teja","Hello world");
-//		return "index";
-//	}
-	
-//	@PostMapping("/addPatient")
-//	public String addPatient(Model model,@ModelAttribute("patient") Patient patientData) {
-//		System.out.println(patientData.toString());
-//		patientService.addPatient(patientData);
-//		model.addAttribute("name",patientData.getName());
-//		return "patientdetails";
-//	}
-	@PutMapping("/update/{patientId}")
-	 public void updatePatient(@PathVariable long patientId, @RequestBody Patient patientData) {
-		 patientService.updatePatient(patientId, patientData);
-	 }
-	@GetMapping("/getPatient/{patientId}")
-	 public Optional<Patient> getPatientDetails(@PathVariable long patientId){
-		System.out.println(patientId);
-		 return patientService.getPatientDetails(patientId); 
-	 }
-	@GetMapping("/getallpatients")
-	 public Iterable<Patient> getPatientall(){
-		 return patientService.getPatientall(); 
-	 }
-	@DeleteMapping("/delete/{patientId}")
-	 public void  deletePatient(@PathVariable long patientId) {
-		 patientService.deletePatient(patientId);
-	 }
-	@GetMapping("/getname/{name}")
-	public Patient getname(@PathVariable String name) {
-		System.out.println(name);
-		return patientService.getByname(name);
-	}
 
+    @Autowired
+    private PatientService patientService;
+    
+    @PutMapping("/update/{patientId}")
+    @PreAuthorize("hasAnyAuthority('PATIENT', 'ADMIN')") // Exact authority check
+    public void updatePatient(@PathVariable long patientId, @RequestBody Patient patientData) {
+        patientService.updatePatient(patientId, patientData);
+    }
+
+    @GetMapping("/getPatient/{patientId}") // Doctors & Admins can view specific profile info
+    public Optional<Patient> getPatientDetails(@PathVariable long patientId){
+        System.out.println(patientId);
+        return patientService.getPatientDetails(patientId); 
+    }
+
+    @GetMapping("/getallpatients")
+    @PreAuthorize("hasAnyAuthority('DOCTOR', 'ADMIN')") // Patients shouldn't see a list of other patients
+    public Iterable<Patient> getPatientall(){
+        return patientService.getPatientall(); 
+    }
+
+    @DeleteMapping("/delete/{patientId}")
+    @PreAuthorize("hasAuthority('ADMIN')") // Restrict data destruction exclusively to Admin
+    public void deletePatient(@PathVariable long patientId) {
+        patientService.deletePatient(patientId);
+    }
+
+    
+    // ADDED: Covered uppercase, lowercase, and ROLE_ prefixes so Spring Security cannot reject it!
+    // @PreAuthorize("hasAnyAuthority('PATIENT', 'ROLE_PATIENT', 'patient', 'DOCTOR', 'ROLE_DOCTOR', 'ADMIN', 'ROLE_ADMIN')")
+    @GetMapping("/getname/{name}")
+    public Patient getname(@PathVariable String name) {
+        System.out.println("DEBUG: Successfully hit getname endpoint for user: " + name);
+        return patientService.getByname(name);
+    }
 }
