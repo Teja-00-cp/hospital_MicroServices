@@ -25,7 +25,8 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
             "/order/user/authenticate",
             "/order/user/addPatient",
             "/order/user/addDoctor",
-            "/order/user"
+            "/order/user",
+            "/appointment/actuator"
     );
 
     @Override
