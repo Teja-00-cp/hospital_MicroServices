@@ -1,107 +1,157 @@
 package com.example.bill.Service;
 
+import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+
+import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.example.bill.DTO.BillData;
 import com.example.bill.Model.Bill;
 import com.example.bill.Model.Bill.PaymentStatus;
 import com.example.bill.Repository.BillRepository;
-import com.example.bill.controller.BillingController.BillData;
 import com.example.bill.feign.WelcomrFeign;
+import com.razorpay.Order;
+import com.razorpay.RazorpayClient;
+import com.razorpay.Utils;
 
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import moc.tem.model.Patient;
 
-import java.time.LocalDate;
-
 @Service
 public class BillingService {
 
-    private final BillRepository billRepository;
-    private final WelcomrFeign welcomrFeign;
-
-    // Standardized Constructor Injection
     @Autowired
-    public BillingService(BillRepository billRepository, WelcomrFeign welcomrFeign) {
+    private BillRepository billRepository;
+
+    @Autowired
+    private WelcomrFeign welcomrFeign;
+
+    private RazorpayClient razorpayClient;
+
+    @Value("${razorpay.key.id}")
+    private String key;
+
+    @Value("${razorpay.key.secret}")
+    private String secret;
+
+    @Autowired
+    public BillingService(BillRepository billRepository,
+                          WelcomrFeign welcomrFeign,
+                          @Value("${razorpay.key.id}") String key,
+                          @Value("${razorpay.key.secret}") String secret)
+            throws Exception {
+
         this.billRepository = billRepository;
         this.welcomrFeign = welcomrFeign;
+        this.key = key;
+        this.secret = secret;
+        this.razorpayClient = new RazorpayClient(key, secret);
     }
 
     public Iterable<Bill> generateBill(String patientName) {
-        return billRepository.findByPatientId(welcomrFeign.getPatientId(patientName).getPatientId());
-    }
-
-    @CircuitBreaker(name = "failtra", fallbackMethod = "processPaymentFallback")
-    public String processPaymentafter(BillData data) {
-        // 1. Fetch Patient via Feign
-        Patient feignpatient = welcomrFeign.getPatientId(data.getPatientName());
-        System.out.println("Patient ID: " + feignpatient.getPatientId());
-        
-        // 2. Process Payment (Passing the ID so we don't call Feign twice)
-        String status = processPayment(data, feignpatient.getPatientId());
-        System.out.println(status + " | I Am Executing: ---------------------------------------");
-        
-        // 3. Trigger the Circuit Breaker intentionally if it fails
-        if ("fail".equals(status)) {
-            throw new RuntimeException("Payment processing failed intentionally");
-        }
-
-        // 4. Save to DB on Success
-        Bill bill = new Bill();
-        bill.setBillDate(LocalDate.now());
-        bill.setPatientId(feignpatient.getPatientId());
-        bill.setTotalAmount(data.getTotalAmount());
-        bill.setPaymentStatus(PaymentStatus.PAID);
-        billRepository.save(bill);
-        
-        return status;
-    }
-
-    // --- FALLBACK METHOD ---
-    public String processPaymentFallback(BillData data, Throwable t) {
-        // Log the exact reason the fallback was triggered (Exception or OPEN state)
-        System.err.println("🛡️ Fallback Activated! Reason: " + t.getMessage());
-        
-        // We DO NOT call welcomrFeign here! If the circuit is OPEN, 
-        // making another remote call is dangerous.
-        
-        Bill bill = new Bill();
-        bill.setBillDate(LocalDate.now());
-        bill.setTotalAmount(data.getTotalAmount());
-        bill.setPaymentStatus(PaymentStatus.UNPAID); 
-        
-        // Note: Because Feign might be down, we cannot safely fetch the PatientId here.
-        // If you must save failed bills to the database, you should include the 
-        // PatientId directly inside your BillData DTO from the controller.
-        
-        // billRepository.save(bill); 
-
-        // return "fail-fallback";
-        if (t instanceof CallNotPermittedException) {
-        // The circuit is OPEN. It has failed multiple times. System is down.
-        return "fail-fallback"; 
-    } else {
-        // The circuit is still CLOSED. This was just a single transaction failure.
-        return "fail"; 
-    }
+        Patient patient = welcomrFeign.getPatientId(patientName);
+        return billRepository.findByPatientId(patient.getPatientId());
     }
 
     public Bill getBillDetails(Long billId) {
         return billRepository.findById(billId)
-                .orElseThrow(() -> new RuntimeException("Bill not found with ID: " + billId));
+                .orElseThrow(() -> new RuntimeException("Bill not found"));
     }
 
-    public String processPayment(BillData data, Long patientId) {
-        boolean bol = welcomrFeign.getPatientDetails(patientId).isPresent();
-        System.out.println("Patient exists in Feign: " + bol);
-        // bol=false;
-        // TEST LOGIC: 70% chance to fail, 30% chance to succeed.
-        // This will force the circuit to open, but eventually allow enough successes 
-        // through during the HALF-OPEN state to close the circuit again.
-        // boolean isIntentionalFailure = Math.random() < 0.7; 
+    /**
+     * Create Razorpay Order
+     */
+    public Map<String, Object> createOrder(BillData data) throws Exception {
+
+        JSONObject options = new JSONObject();
+
+        // Convert double/float amount to paise as an integer
+        options.put("amount", (int) (data.getTotalAmount() * 100));
+        options.put("currency", "INR");
+        options.put("receipt", UUID.randomUUID().toString());
+
+        Order order = razorpayClient.orders.create(options);
+
+        // Map the properties manually into a standard Java Map
+        // This solves the Spring Boot serialization issue
+        Map<String, Object> response = new HashMap<>();
+        response.put("id", order.get("id"));
+        response.put("amount", order.get("amount"));
+        response.put("currency", order.get("currency"));
+        response.put("receipt", order.get("receipt"));
+        response.put("status", order.get("status"));
+
+        return response;
+    }
+
+    /**
+     * Verify payment and save bill
+     */
+    @CircuitBreaker(name = "failtra", fallbackMethod = "processPaymentFallback")
+    public String verifyPayment(String razorpayOrderId,
+                                String razorpayPaymentId,
+                                String razorpaySignature,
+                                BillData data) throws Exception {
+
+        // Prevent crashes if the frontend sends null or missing values
+        if (razorpayOrderId == null || razorpaySignature == null) {
+            return "Invalid Payment Data: Missing Signature or Order ID";
+        }
+
+        JSONObject json = new JSONObject();
+        json.put("razorpay_order_id", razorpayOrderId);
+        json.put("razorpay_payment_id", razorpayPaymentId);
+        json.put("razorpay_signature", razorpaySignature);
+
+        boolean valid = Utils.verifyPaymentSignature(json, secret);
+
+        if (!valid) {
+            return "Invalid Signature";
+        }
+
+        Patient patient = welcomrFeign.getPatientId(data.getPatientName());
+        Optional<Patient> p = welcomrFeign.getPatientDetails(patient.getPatientId());
+
+        if (p.isEmpty()) {
+            return "Patient Not Found";
+        }
+
+        Bill bill = new Bill();
+        bill.setPatientId(patient.getPatientId());
+        bill.setBillDate(LocalDate.now());
+        bill.setTotalAmount(data.getTotalAmount());
+        bill.setPaymentStatus(PaymentStatus.PAID);
+        billRepository.save(bill);
+
+        return "Payment Success";
+    }
+
+    /**
+     * Circuit Breaker Fallback
+     */
+    public String processPaymentFallback(String razorpayOrderId,
+                                         String razorpayPaymentId,
+                                         String razorpaySignature,
+                                         BillData data,
+                                         Throwable t) {
+
+        Bill bill = new Bill();
+        bill.setBillDate(LocalDate.now());
+        bill.setTotalAmount(data.getTotalAmount());
+        bill.setPaymentStatus(PaymentStatus.UNPAID);
+
+        if (t instanceof CallNotPermittedException) {
+            return "Payment Service Down";
+        }
         
-        return bol ? "success" : "fail";
+        t.printStackTrace();
+        return "Payment Failed";
     }
 }

@@ -11,12 +11,30 @@ spring:
         instance:
           prefer-ip: true 
 
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: booking-confirmation-group-v2
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.trusted.packages: "*"
+        spring.json.use.type.headers: false
+        # MANDATORY: Explicitly map incoming JSON to your Consumer DTO class
+        spring.json.value.default.type: "com.example.payment.Dto.PaymentSuccessEvent"
+
 eureka:
   client:
     service-url:
       defaultZone: http://localhost:8761/eureka
   instance:
     hostname: localhost
+
 management:
   endpoints:
     web:
@@ -24,28 +42,22 @@ management:
         include: '*'
   tracing:
     sampling:
-      probability: 1.0 # Trace 100% of requests (For dev only. In Prod, set to 0.1)
+      probability: 1.0 # Trace 100% of requests
   zipkin:
     tracing:
       endpoint: "http://localhost:9411/api/v2/spans"
 
-# application.yml (Appointment Microservice)
+# Silence high-frequency Kafka polling logs
+logging:
+  level:
+    org.apache.kafka: WARN
+    org.springframework.kafka: WARN
 
 resilience4j:
   circuitbreaker:
     instances:
-      # Circuit Breaker specifically for the Feign client
       welcomeOrderServiceCircuit: 
         failureRateThreshold: 50
         waitDurationInOpenState: 100s
         slidingWindowType: COUNT_BASED
         slidingWindowSize: 5
-  # retry:
-  #   instances:
-  #     welcomeOrderServiceRetry:
-  #       maxAttempts: 3
-  #       waitDuration: 200ms
-  #       retryExceptions:
-  #         - java.util.concurrent.TimeoutException
-  #         - java.io.IOException
-  #         - org.springframework.web.client.ResourceAccessException
