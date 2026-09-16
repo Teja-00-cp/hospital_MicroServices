@@ -116,9 +116,9 @@ public class UserContr {
 
         // 2. Fetch User Details
         final UserDetails userDetails = userDetailsService.loadUserByUsername(authRequest.getUsername());
-        
+        User user = userSer.findByUsername(authRequest.getUsername());
         // 3. Format the role to map Spring Security expectations (e.g., "ROLE_PATIENT")
-        String formattedRole = "ROLE_" + authRequest.getRole();
+        String formattedRole = "ROLE_" + user.getRole();
         // 4. Generate the JWT string containing the role
         final String token = jwtUtil.generateToken(userDetails, formattedRole);
 

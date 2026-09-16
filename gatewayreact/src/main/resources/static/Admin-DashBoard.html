@@ -10,7 +10,8 @@
     
     <script>
         (function() {
-            if (localStorage.getItem('userRole') !== 'admin') {
+        console.log("Checking user role in localStorage:", localStorage.getItem('userRole'));
+            if (localStorage.getItem('userRole') !== 'ADMIN') {
                 alert("Access denied. You must be an administrator and logged in to view this page.");
                 window.location.href = 'Login.html';
             }

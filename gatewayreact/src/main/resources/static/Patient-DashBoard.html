@@ -153,6 +153,7 @@
         }
     </style>
 </head>
+
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark custom-header" style="background: linear-gradient(90deg, #007bff 60%, #17a2b8 100%);">
         <div class="container">
@@ -198,14 +199,50 @@
                 <ul class="list-unstyled" id="patientDetailsList"></ul>
             </div>
         </div>
+
+        <!-- UPCOMING APPOINTMENTS DROPDOWN WITH PAGINATION -->
         <div class="card mt-5">
             <div class="card-header">
                 <i class="fas fa-calendar-alt"></i> Your Upcoming Appointments
             </div>
+            <div class="card-body">
+                <div class="form-group mb-2">
+                    <label for="upcomingSelect"><strong>Select Upcoming Appointment:</strong></label>
+                    <select class="form-control" id="upcomingSelect">
+                        <option value="" disabled selected>Loading upcoming appointments...</option>
+                    </select>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-3">
+                    <button class="btn btn-danger btn-sm" id="cancelSelectedUpcomingBtn" disabled>Cancel Selected Appointment</button>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0" id="upcomingPagination"></ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+
+        <!-- COMPLETED APPOINTMENTS LIST WITH PAGES (NO DROPDOWN) -->
+        <div class="card mt-4">
+            <div class="card-header bg-success text-white">
+                <i class="fas fa-check-circle"></i> Your Completed Appointments History
+            </div>
+            <ul id="completedAppointmentList" class="list-group list-group-flush">
+                <li class="list-group-item">Loading completed history...</li>
+            </ul>
+            <div class="card-footer bg-white d-flex justify-content-end align-items-center">
+                <nav>
+                    <ul class="pagination pagination-sm mb-0" id="completedPagination"></ul>
+                </nav>
+            </div>
+        </div>
+
+        <!-- HIDDEN BACKWARD COMPATIBILITY CONTAINER -->
+        <div class="card mt-4" style="display: none;">
             <ul id="appointmentList" class="list-group list-group-flush">
                 <li class="list-group-item">No upcoming appointments.</li>
             </ul>
         </div>
+
         <div class="card bills-card" id="billsCard">
             <div class="card-header">
                 <i class="fas fa-file-invoice-dollar"></i> Your Bills
@@ -258,9 +295,15 @@
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
     <script>
         $(document).ready(function() {
-            // FIXED: Declaration variables moved to the top of ready block to fix initialization crashes
             let detailsLoaded = false;
             const username = localStorage.getItem('username');
+
+            // Pagination state
+            let upcomingAppointmentsList = [];
+            let completedAppointmentsList = [];
+            let upcomingCurrentPage = 1;
+            let completedCurrentPage = 1;
+            const pageSize = 5; // Items per page
 
             // Global AJAX Setup for JWT Injection
             $.ajaxSetup({
@@ -272,13 +315,12 @@
                 }
             });
             
-            // Initialization trigger sequence tracks after variables allocate safely
             if (username) {
                 $('#welcomeMessage').text(`Welcome, ${username}!`);
                 fetchPatientDetails(); 
             }
 
-            // Function to handle the cancel appointment AJAX call
+            // Original cancel appointment function
             function cancelAppointment(appointmentId) {
                 $.ajax({
                     url: `http://localhost:8080/appointment/update/${appointmentId}`,
@@ -294,58 +336,139 @@
                 });
             }
 
-            // Function to display appointments - ALL ORIGINAL CORE LOGIC KEPT EXACTLY THE SAME
-            function displayAppointments(appointments) {
-                const appointmentList = $('#appointmentList');
-                appointmentList.empty();
+            // RENDER UPCOMING APPOINTMENTS DROPDOWN WITH PAGINATION
+            function renderUpcomingDropdown(page) {
+                upcomingCurrentPage = page;
+                const select = $('#upcomingSelect');
+                select.empty();
+                $('#cancelSelectedUpcomingBtn').prop('disabled', true);
 
-                if (appointments && appointments.length > 0) {
-                    appointments.forEach(app => {
-                        const appointmentDate = new Date(app[1]);
-                        const today = new Date();
-                        today.setHours(0, 0, 0, 0);
+                if (!upcomingAppointmentsList || upcomingAppointmentsList.length === 0) {
+                    select.append('<option disabled selected>No upcoming appointments found.</option>');
+                    $('#upcomingPagination').empty();
+                    return;
+                }
 
-                        let displayStatus = app[3]; 
-                        let statusClass = 'text-muted'; 
+                select.append('<option value="" disabled selected>-- Select an Upcoming Appointment --</option>');
+                const totalPages = Math.ceil(upcomingAppointmentsList.length / pageSize);
+                const start = (page - 1) * pageSize;
+                const pageItems = upcomingAppointmentsList.slice(start, start + pageSize);
 
-                        if (appointmentDate < today && app[3] === 'CONFIRMED') {
-                            displayStatus = 'APPOINTMENT COMPLETED';
-                            statusClass = 'text-success'; 
-                        } else if (app[3] === 'CONFIRMED') {
-                            statusClass = 'text-primary'; 
-                        }
-                        
-                        const appointmentItem = $(`
-                            <li class="list-group-item">
-                                <div class="d-flex w-100 justify-content-between">
-                                    <h5 class="mb-1"><strong>Doctor:</strong> ${app[7]} (${app[8]})</h5>
-                                    <small class="${statusClass}"><strong>Status:</strong> ${displayStatus}</small>
-                                </div>
-                                <p class="mb-1"><strong>Patient:</strong> ${app[5]}</p>
-                                <p class="mb-1"><strong>Date:</strong> ${app[1]} at ${app[2]}</p>
-                                
-                                ${
-                                    app[3] === 'CONFIRMED' && appointmentDate >= today
-                                    ? `<button class="btn btn-danger btn-sm mt-2 cancel-btn" data-appointment-id="${app[0]}">Cancel Appointment</button>` 
-                                    : ''
-                                }
-                            </li>
-                        `);
-                        
-                        appointmentList.append(appointmentItem);
-                    });
-                    $('.cancel-btn').on('click', function() {
-                        const appointmentId = $(this).data('appointment-id');
-                        if (confirm('Are you sure you want to cancel this appointment?')) {
-                            cancelAppointment(appointmentId);
-                        }
-                    });
-                } else {
-                    appointmentList.html('<li class="list-group-item">No appointments found.</li>');
+                pageItems.forEach(app => {
+                    select.append(`
+                        <option value="${app[0]}">
+                            Appt #${app[0]} | Doctor: ${app[7]} (${app[8]}) | Date: ${app[1]} at ${app[2]} | Status: ${app[3]}
+                        </option>
+                    `);
+                });
+
+                renderPaginationNav('#upcomingPagination', totalPages, upcomingCurrentPage, 'changeUpcomingDropdownPage');
+            }
+
+            // RENDER COMPLETED APPOINTMENTS LIST WITH PAGINATION (NO DROPDOWN)
+            function renderCompletedList(page) {
+                completedCurrentPage = page;
+                const completedListContainer = $('#completedAppointmentList');
+                completedListContainer.empty();
+
+                if (!completedAppointmentsList || completedAppointmentsList.length === 0) {
+                    completedListContainer.html('<li class="list-group-item text-muted">No completed appointments found.</li>');
+                    $('#completedPagination').empty();
+                    return;
+                }
+
+                const totalPages = Math.ceil(completedAppointmentsList.length / pageSize);
+                const start = (page - 1) * pageSize;
+                const pageItems = completedAppointmentsList.slice(start, start + pageSize);
+
+                pageItems.forEach(app => {
+                    let displayStatus = app[3] === 'CANCELLED' ? 'CANCELLED' : 'APPOINTMENT COMPLETED';
+                    let statusClass = app[3] === 'CANCELLED' ? 'text-danger' : 'text-success';
+
+                    const item = $(`
+                        <li class="list-group-item">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h5 class="mb-1"><strong>Doctor:</strong> ${app[7]} (${app[8]})</h5>
+                                <small class="${statusClass}"><strong>Status:</strong> ${displayStatus}</small>
+                            </div>
+                            <p class="mb-1"><strong>Patient:</strong> ${app[5]}</p>
+                            <p class="mb-1"><strong>Date:</strong> ${app[1]} at ${app[2]}</p>
+                        </li>
+                    `);
+                    completedListContainer.append(item);
+                });
+
+                renderPaginationNav('#completedPagination', totalPages, completedCurrentPage, 'changeCompletedListPage');
+            }
+
+            // GENERIC PAGINATION BUILDER
+            function renderPaginationNav(containerId, totalPages, currentPage, callbackName) {
+                const nav = $(containerId);
+                nav.empty();
+                if (totalPages <= 1) return;
+
+                for (let i = 1; i <= totalPages; i++) {
+                    const activeClass = i === currentPage ? 'active' : '';
+                    nav.append(`
+                        <li class="page-item ${activeClass}">
+                            <button type="button" class="page-link" onclick="window.${callbackName}(${i})">${i}</button>
+                        </li>
+                    `);
                 }
             }
 
-            // Function to fetch and display patient details (Main pipeline wrapper)
+            // Page Navigation Global Callbacks
+            window.changeUpcomingDropdownPage = function(page) {
+                renderUpcomingDropdown(page);
+            };
+
+            window.changeCompletedListPage = function(page) {
+                renderCompletedList(page);
+            };
+
+            // Enable Cancel button when an item is chosen from Upcoming Dropdown
+            $('#upcomingSelect').on('change', function() {
+                if ($(this).val()) {
+                    $('#cancelSelectedUpcomingBtn').prop('disabled', false);
+                }
+            });
+
+            // Action for Cancelling the selected dropdown item
+            $('#cancelSelectedUpcomingBtn').on('click', function() {
+                const selectedApptId = $('#upcomingSelect').val();
+                if (selectedApptId && confirm('Are you sure you want to cancel this appointment?')) {
+                    cancelAppointment(selectedApptId);
+                }
+            });
+
+            // Function to display appointments - ORIGINAL CORE LOGIC KEPT & SPLIT
+            function displayAppointments(appointments) {
+                upcomingAppointmentsList = [];
+                completedAppointmentsList = [];
+
+                if (appointments && appointments.length > 0) {
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+
+                    appointments.forEach(app => {
+                        const appointmentDate = new Date(app[1]);
+
+                        if (appointmentDate < today && app[3] === 'CONFIRMED') {
+                            completedAppointmentsList.push(app);
+                        } else if (app[3] === 'CONFIRMED') {
+                            upcomingAppointmentsList.push(app);
+                        } else {
+                            completedAppointmentsList.push(app);
+                        }
+                    });
+                }
+
+                // Render paginated components
+                renderUpcomingDropdown(1);
+                renderCompletedList(1);
+            }
+
+            // Function to fetch and display patient details (Main pipeline wrapper - Original intact)
             function fetchPatientDetails() {
                 $.ajax({
                     url: `http://localhost:8080/order/pat/getname/${username}`,
@@ -363,7 +486,7 @@
                         detailsList.append(`<li><strong>Address:</strong> ${patientData.address}</li>`);
                         detailsList.append(`<li><strong>Medical History:</strong> ${patientData.medicalHistory}</li>`);
                         
-                        // Your internal synchronized appointments ajax call
+                        // Synchronized appointments call
                         $.ajax({
                             url: `http://localhost:8080/appointment/appt/all`,
                             type: 'GET',
@@ -378,7 +501,7 @@
                             error: function(error) {
                                 console.error('Failed to fetch appointment details:', error);
                                 displayAppointments([]);
-                    }
+                            }
                         });
                     },
                     error: function(error) {

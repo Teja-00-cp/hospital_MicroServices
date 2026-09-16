@@ -11,6 +11,17 @@ spring:
         instance:
           prefer-ip: true # Forces Spring Boot Admin to target IP/Localhost
 
+# --- ADDED: FORCE OPENAPI TO BROADCAST GATEWAY URL ---
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+  servers:
+    - url: http://localhost:8080
+      description: API Gateway Base URL
+# -----------------------------------------------------
+
 eureka:
   client:
     service-url:

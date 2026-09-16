@@ -2,9 +2,13 @@ package com.example.order.Service;
 
 
 
+import java.time.format.DateTimeParseException;
+
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.example.order.Model.Doctor;
 import com.example.order.Repository.DocRe;
@@ -39,14 +43,25 @@ public class DoctorService {
         Doctor existingPatient = docRe.findById(patientId).orElse(null);
 			System.out.println(doctorData.toString()+"  "+patientId);
 		if (existingPatient != null) {
+			// In your Doctor Service:
+try {
+    // Your schedule parsing logic here
+
 			System.out.println(doctorData.toString());
 			existingPatient.setAvailabilitySchedule(doctorData.getAvailabilitySchedule());
 			existingPatient.setSpecialization(doctorData.getSpecialization());	
 			existingPatient.setContactNumber(doctorData.getContactNumber());	
-			docRe.save(existingPatient);}
+			docRe.save(existingPatient);} catch (DateTimeParseException | IllegalArgumentException ex) {
+    throw new ResponseStatusException(
+        HttpStatus.BAD_REQUEST, 
+        "Invalid availability schedule format. Expected format: 04:00AM-08:00PM"
+    );
+}
+		}
 			else{
 				throw new RuntimeException("Patient not found with id: " + patientId);
 			}
+			
     }
 	public void deleteDoctor(Long id) {
 		docRe.deleteById(id);

@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.List;
 
 @Component
 public class JwtRequestFilter extends OncePerRequestFilter {
@@ -27,17 +27,20 @@ public class JwtRequestFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
 
-            String requestURI = request.getRequestURI();
-                // System.out.println("🔍 DEBUG: Incoming request URI: " + requestURI);
-    // 🚨 ADD THIS CONDITIONAL CHECK AT THE VERY TOP OF THE FILTER:
-    if (requestURI.contains("/order/user/authenticate") || 
-        requestURI.contains("/order/user/forgot") || 
-        requestURI.contains("/order/user/addPatient")) {
-        System.out.println("⚠️ DEBUG: Skipping JWT validation for public endpoint: " + requestURI);
-        // Skip token validation completely and pass the request along!
-        chain.doFilter(request, response);
-        return;
-    }
+        String requestURI = request.getRequestURI();
+
+        // 1. Skip token validation completely for public and OpenAPI/Swagger endpoints
+        if (requestURI.contains("/order/user/authenticate") || 
+            requestURI.contains("/order/user/forgot") || 
+            requestURI.contains("/order/user/addPatient") ||
+            requestURI.contains("/v3/api-docs") ||
+            requestURI.contains("/swagger-ui") ||
+            requestURI.contains("/error")) {
+            
+            System.out.println("⚠️ DEBUG: Skipping JWT validation for public/OpenAPI endpoint: " + requestURI);
+            chain.doFilter(request, response);
+            return;
+        }
 
         final String authorizationHeader = request.getHeader("Authorization");
 
@@ -56,20 +59,25 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             if (!jwtUtil.isTokenExpired(jwt)) {
                 
-                // 1. Extract the authority from the token claims
                 String authority = jwtUtil.extractAuthority(jwt); 
                 
-                // 2. PRINT IT TO THE CONSOLE to see what is actually inside the token
                 System.out.println("🛡️ SPRING SECURITY ROLE EXTRACTED: [" + authority + "]");
                 
-                // 3. FALLBACK: If the token doesn't have a role, force it so it doesn't crash
                 if (authority == null || authority.trim().isEmpty()) {
                     System.out.println("⚠️ WARNING: Authority was null! Defaulting to PATIENT.");
                     authority = "PATIENT"; 
                 }
+
+                String rolePrefixed = authority.startsWith("ROLE_") ? authority : "ROLE_" + authority;
+                String cleanRole = rolePrefixed.replace("ROLE_", "");
+
+                List<SimpleGrantedAuthority> authorities = List.of(
+                    new SimpleGrantedAuthority(rolePrefixed),
+                    new SimpleGrantedAuthority(cleanRole)
+                );
                 
                 UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(
-                        username, null, Collections.singletonList(new SimpleGrantedAuthority(authority)));
+                        username, null, authorities);
                 
                 authenticationToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authenticationToken);

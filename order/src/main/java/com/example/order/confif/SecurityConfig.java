@@ -33,22 +33,24 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        // ADDED: .cors(Customizer.withDefaults()) to allow preflight OPTIONS requests
         http.cors(Customizer.withDefaults())
             .csrf(csrf -> csrf.disable()) 
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
+                    "/v3/api-docs/**",
+                    "/v3/api-docs",
+                    "/swagger-ui/**",
+                    "/swagger-ui.html",
+                    "/error",
                     "/order/user/authenticate", 
                     "/order/user/addPatient", 
                     "/order/user/addDoctor",
                     "/order/get/**",
-                    "/order/pat/getname/**", // 🚨 ADD THIS EXACT LINE HERE! 🚨
+                    "/order/pat/getname/**",
                     "/order/pat/**",
                     "/order/user/**",
                     "/order/getname/**",
                     "/actuator/**"
-
-                    
                 ).permitAll()
                 .requestMatchers("/order/user/forgot/**").permitAll()
                 .anyRequest().authenticated()
@@ -62,11 +64,10 @@ public class SecurityConfig {
         return http.build();
     }
 
-    // ADDED: This bean tells Spring Security exactly which headers and methods to allow
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("*")); // Allow all origins (VS Code Live Server, etc)
+        configuration.setAllowedOrigins(List.of("*"));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         

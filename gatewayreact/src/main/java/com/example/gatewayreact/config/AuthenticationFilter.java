@@ -9,6 +9,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
@@ -20,22 +21,31 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
     @Autowired
     private JwtUtil jwtUtil;
 
-    // Define routes that DO NOT require a token (Login and Registration)
+    // Helper to evaluate Ant-style wildcards (* and **)
+    private final AntPathMatcher pathMatcher = new AntPathMatcher();
+
+    // Define routes that DO NOT require a token
     private final List<String> openApiEndpoints = List.of(
             "/order/user/authenticate",
             "/order/user/addPatient",
             "/order/user/addDoctor",
             "/order/user",
-            "/appointment/actuator"
+            "/appointment/actuator",
+            "/v3/api-docs/**",
+            "/v3/api-docs",
+            "/swagger-ui/**",
+            "/swagger-ui.html",
+            "/error"
     );
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         ServerHttpRequest request = exchange.getRequest();
+        String path = request.getURI().getPath();
 
-        // 1. Check if the route is public (Login/Register)
+        // 1. FIXED: Match paths using AntPathMatcher instead of String.contains()
         boolean isPublicEndpoint = openApiEndpoints.stream()
-                .anyMatch(uri -> request.getURI().getPath().contains(uri));
+                .anyMatch(pattern -> pathMatcher.match(pattern, path) || path.contains(pattern));
 
         if (isPublicEndpoint) {
             return chain.filter(exchange); // Let them pass without checking tokens
@@ -50,7 +60,7 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
 
-            // 3. FIXED LOGIC: Proceed ONLY if the token is NOT expired (!)
+            // 3. Proceed ONLY if token is NOT expired
             if (!jwtUtil.isTokenExpired(token)) {
                 
                 // 4. Extract Data securely from valid token
@@ -58,28 +68,26 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
                 String username = claims.getSubject();
                 String role = claims.get("authority", String.class);
 
-                // 5. Mutate the request to inject headers for downstream services
+                // 5. Mutate request headers for downstream services
                 ServerHttpRequest modifiedRequest = exchange.getRequest().mutate()
                         .header("X-User-Name", username)
                         .header("X-User-Role", role)
                         .build();
 
-                // Forward the newly mutated request downstream
+                // Forward mutated request
                 return chain.filter(exchange.mutate().request(modifiedRequest).build());
             }
         }
 
-        // If execution reaches here, the token format was wrong, missing, or truly expired
+        // If execution reaches here, token format was invalid or expired
         return onError(exchange, "Invalid or Expired Token", HttpStatus.UNAUTHORIZED);
     }
 
-    // Handles the 401 Unauthorized rejection reactively
     private Mono<Void> onError(ServerWebExchange exchange, String err, HttpStatus httpStatus) {
         exchange.getResponse().setStatusCode(httpStatus);
         return exchange.getResponse().setComplete();
     }
 
-    // Ensures this filter runs early in the Gateway pipeline
     @Override
     public int getOrder() {
         return -1; 

@@ -1,11 +1,13 @@
 package com.example.order.Service;
 
+import java.time.format.DateTimeParseException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -13,6 +15,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.example.order.Dto.AuthRequest;
 import com.example.order.Dto.DoctorDao;
@@ -78,6 +81,8 @@ public class UserSer {
 	 }
 	 
 	 public void addDoctor( DoctorDao doctorDao){
+		try {
+    // Your schedule parsing logic here
 		 User user=new User();
 			user.setUsername(doctorDao.getUserName());
 			user.setPassword(passwordEncoder.encode( doctorDao.getPassWord()));
@@ -89,6 +94,14 @@ public class UserSer {
 			doctor.setSpecialization(doctorDao.getSpecialization());
 			doctorService.addDoc(doctor);
 			addUser(user);
+			// In your Doctor Service:
+
+} catch (DateTimeParseException | IllegalArgumentException ex) {
+    throw new ResponseStatusException(
+        HttpStatus.BAD_REQUEST, 
+        "Invalid availability schedule format. Expected format: 04:00AM-08:00PM"
+    );
+}
 	 }
 	 public void addPatient( PatientDao patientDao){
 			User user=new User();

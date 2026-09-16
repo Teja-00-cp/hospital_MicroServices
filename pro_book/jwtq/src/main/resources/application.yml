@@ -1,5 +1,0 @@
-spring:
-  application:
-    name: Login-Service
-server:
-  port: 8932

@@ -18,6 +18,7 @@ import jakarta.persistence.ElementCollection; // To store a collection of simple
 import java.util.*;
 import jakarta.persistence.CollectionTable;  // To define the table for the IDs
 import jakarta.persistence.JoinColumn;       // To join the ID table back to Doctor
+import jakarta.validation.constraints.Pattern;
 
 @Entity
 public class Doctor {
@@ -29,6 +30,8 @@ public class Doctor {
 	private String name;
 	private String specialization; 
 	private String contactNumber ;
+	@Pattern(regexp = "^(0[1-9]|1[0-2]):[0-5][0-9](AM|PM)-(0[1-9]|1[0-2]):[0-5][0-9](AM|PM)$", 
+             message = "Availability schedule must follow format 'HH:MMAM-HH:MMPM'")
 	private String availabilitySchedule;
 
     // --- REPLACED COMPLEX JPA/DTO RELATIONSHIP WITH A LIST OF FOREIGN KEYS (IDs) ---

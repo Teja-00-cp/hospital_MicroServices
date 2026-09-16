@@ -65,6 +65,13 @@
         <artifactId>spring-boot-starter-test</artifactId>
         <scope>test</scope>
         </dependency>
+        <!-- Publishes the OpenAPI document at /v3/api-docs and Swagger UI at /swagger-ui.html.
+             2.6.x is the line that matches Spring Boot 3.3.x. -->
+        <dependency>
+        <groupId>org.springdoc</groupId>
+        <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+        <version>2.6.0</version>
+        </dependency>
         <dependency>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-security</artifactId>
@@ -97,6 +104,11 @@
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>2.6.0</version>
         </dependency>
 
         <dependency>

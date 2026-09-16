@@ -19,7 +19,7 @@ spring:
 
   cloud:
     gateway:
-      # --- ADDED: GLOBAL CORS TO FIX THE 401 OPTIONS ERROR ---
+      # --- GLOBAL CORS TO FIX THE 401 OPTIONS ERROR ---
       globalcors:
         corsConfigurations:
           '[/**]':
@@ -39,6 +39,12 @@ spring:
         response-timeout: 8s       # 8 seconds duration
       
       routes:
+        # --- ADDED: OPENAPI / SWAGGER ROUTE TO FIX WHITELABEL ERROR ---
+        - id: openapi-order-route
+          uri: lb://WELCOME-ORDER-SERVICE
+          predicates:
+            - Path=/v3/api-docs/**, /v3/api-docs
+
         # 1. Route to WELCOME-ORDER-SERVICE
         - id: welcome-service-route
           uri: lb://WELCOME-ORDER-SERVICE
@@ -77,9 +83,6 @@ eureka:
     service-url:
       defaultZone: http://localhost:8761/eureka
 
-
-   
-
 # 2. ACTUATOR CONFIGURATION: Exposes circuit breaker states via /actuator/health
 management:
   endpoints:
@@ -92,9 +95,11 @@ management:
   health:
     circuitbreakers:
       enabled: true
+  
+  # --- ZIPKIN TRACING PRESERVED ---
   tracing:
     sampling:
-      probability: 1.0 # Trace 100% of requests (For dev only. In Prod, set to 0.1)
+      probability: 1.0 # Trace 100% of requests
   zipkin:
     tracing:
       endpoint: "http://localhost:9411/api/v2/spans"
