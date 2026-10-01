@@ -77,6 +77,22 @@ spring:
               args:
                 name: paymentCircuitBreaker
                 fallbackUri: forward:/gateway-fallback/payment
+                # 4. Route to RAG SERVICE
+        - id: rag-service-route
+          uri: lb://HMS-RAG-SERVICE
+
+          predicates:
+            - Path=/api/rag/**
+
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: ragCircuitBreaker
+                fallbackUri: forward:/gateway-fallback/rag
+
+          metadata:
+            connect-timeout: 8000
+            response-timeout: 30000
 
 eureka:
   client:

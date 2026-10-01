@@ -491,10 +491,14 @@
                             url: `http://localhost:8080/appointment/appt/all`,
                             type: 'GET',
                             success: function(appointmentData) {
+                                console.log('-----Fetched appointment data:', appointmentData);
                                 if (appointmentData.length > 0) {
-                                    const patientAppointments = appointmentData.filter(app => app[5] === username);
+                                    console.log('Logged-in Username:', username);
+                                    console.log('Raw Received Data:', appointmentData);
+                                    const patientAppointments = appointmentData.filter(app => app[5].toLowerCase() === username.toLowerCase());
                                     displayAppointments(patientAppointments);
                                 } else {
+                                    console.log('No appointments found for this patient.');
                                     displayAppointments([]);
                                 }
                             },

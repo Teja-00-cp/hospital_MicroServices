@@ -1,0 +1,72 @@
+server:
+  port: 8085
+
+spring:
+  application:
+    name: HMS-RAG-SERVICE
+
+  boot:
+    admin:
+      client:
+        url: http://localhost:1111/
+        instance:
+          prefer-ip: true
+          service-base-url: http://localhost:8085
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/hms_rag
+    username: root
+    password: root
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+
+  ai:
+    model:
+      chat: google-genai
+      embedding:
+        text: google-genai
+
+    google:
+      genai:
+        api-key: ${GEMINI_API_KEY}
+
+        chat:
+          model: gemini-2.5-flash
+
+        embedding:
+          api-key: ${GEMINI_API_KEY}
+
+          text:
+            model: text-embedding-004
+
+eureka:
+  client:
+    enabled: true
+    register-with-eureka: true
+    fetch-registry: true
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/
+
+  instance:
+    preferIpAddress: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+
+  endpoint:
+    health:
+      show-details: always
+
+  tracing:
+    sampling:
+      probability: 1.0
+
+  zipkin:
+    tracing:
+      endpoint: http://localhost:9411/api/v2/spans

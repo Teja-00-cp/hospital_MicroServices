@@ -1,0 +1,28 @@
+hms-rag-complete/
+|-- pom.xml
+|-- README.md
+|-- src/
+|   |-- main/
+|   |   |-- java/com/hospital/hms/
+|   |   |   |-- HmsApplication.java
+|   |   |   |-- ai/
+|   |   |   |   |-- ClinicalChunker.java
+|   |   |   |   |-- ClinicalDocumentIndexer.java
+|   |   |   |   |-- ClinicalIndexListener.java
+|   |   |   |   |-- ClinicalRetrievalService.java
+|   |   |   |   |-- ClinicalRagService.java
+|   |   |   |   |-- RagController.java
+|   |   |   |   |-- RagRequest.java
+|   |   |   |   |-- RagResponse.java
+|   |   |   |   `-- RagSource.java
+|   |   |   |-- config/
+|   |   |   |   |-- LocalVectorStoreConfig.java
+|   |   |   |   `-- PgVectorStoreConfig.java
+|   |   |   |-- patient/
+|   |   |   |-- ehr/
+|   |   |   `-- common/
+|   |   `-- resources/
+|   |       |-- application.yml
+|   |       |-- application-prod.yml
+|   |       `-- schema-prod.sql
+|   `-- test/java/com/hospital/hms/ai/ClinicalChunkerTest.java

@@ -59,5 +59,4 @@ public class OrderApplication  implements CommandLineRunner {
 			userRepo.save(user);
 		}
 	}
-
 }
